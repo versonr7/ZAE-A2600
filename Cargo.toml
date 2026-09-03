@@ -1,0 +1,9 @@
+[workspace]
+members = ["zae-a2600", "a2600-app"]
+resolver = "2"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
