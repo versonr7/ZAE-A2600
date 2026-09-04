@@ -11,10 +11,10 @@ name = "a2600_app"
 crate-type = ["cdylib"]
 
 [dependencies]
-za-math = { path = "../../ZAVOGLES-GUI/za-math" }
-za-sys = { path = "../../ZAVOGLES-GUI/za-sys" }
-za-gles = { path = "../../ZAVOGLES-GUI/za-gles" }
-za-xmb = { path = "../../ZAVOGLES-GUI/za-xmb" }
+za-math = { git = "https://github.com/versonr7/ZAVOGLES-GUI", package = "za-math", branch = "main" }
+za-sys = { git = "https://github.com/versonr7/ZAVOGLES-GUI", package = "za-sys", branch = "main" }
+za-gles = { git = "https://github.com/versonr7/ZAVOGLES-GUI", package = "za-gles", branch = "main" }
+za-xmb = { git = "https://github.com/versonr7/ZAVOGLES-GUI", package = "za-xmb", branch = "main" }
 zae-a2600 = { path = "../zae-a2600" }
 heapless = "0.9.3"
 libm = "0.2.16"

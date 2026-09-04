@@ -11,6 +11,6 @@ name = "zae_a2600"
 crate-type = ["lib"]
 
 [dependencies]
-za-math = { path = "../../ZAVOGLES-GUI/za-math" }
-za-gles = { path = "../../ZAVOGLES-GUI/za-gles" }
-za-xmb = { path = "../../ZAVOGLES-GUI/za-xmb" }
+za-math = { git = "https://github.com/versonr7/ZAVOGLES-GUI", package = "za-math", branch = "main" }
+za-gles = { git = "https://github.com/versonr7/ZAVOGLES-GUI", package = "za-gles", branch = "main" }
+za-xmb = { git = "https://github.com/versonr7/ZAVOGLES-GUI", package = "za-xmb", branch = "main" }
