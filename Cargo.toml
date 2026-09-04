@@ -2,12 +2,6 @@
 members = ["zae-a2600", "a2600-app"]
 resolver = "2"
 
-[patch."https://github.com/versonr7/ZAVOGLES-GUI"]
-za-math = { path = "../ZAVOGLES-GUI/za-math" }
-za-sys = { path = "../ZAVOGLES-GUI/za-sys" }
-za-gles = { path = "../ZAVOGLES-GUI/za-gles" }
-za-xmb = { path = "../ZAVOGLES-GUI/za-xmb" }
-
 [profile.dev]
 panic = "abort"
 
