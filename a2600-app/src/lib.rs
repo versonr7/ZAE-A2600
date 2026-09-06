@@ -308,6 +308,10 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
 
 // ===== PANIC HANDLER =====
 #[cfg(not(test))]
+#[no_mangle]
+pub extern "C" fn rust_eh_personality() {}
+
+#[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     if info.location().is_some() {
