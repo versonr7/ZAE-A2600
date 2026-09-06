@@ -54,11 +54,11 @@ jobs:
           link-to-sdk: true
           local-cache: true
 
-      - name: Checkout ZAVOGLES-GUI (sibling dependency)
+      - name: Checkout ZAVOGLES-GUI
         uses: actions/checkout@v4
         with:
-            repository: versonr7/ZAVOGLES-GUI
-            path: ../ZAVOGLES-GUI
+          repository: versonr7/ZAVOGLES-GUI
+          path: ZAVOGLES-GUI
     
       - name: Build Debug APK
         run: cargo apk2 build -p a2600-app
