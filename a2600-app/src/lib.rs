@@ -226,6 +226,8 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         return;
     }
 
+  logfox!("A2600", "nativeOnFrame entered");
+  
     unsafe {
         let ctx_ptr = GL_CTX.load(Ordering::Acquire);
         if ctx_ptr.is_null() {
@@ -264,14 +266,16 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         let h = HEIGHT.load(Ordering::Acquire) as f32;
 
         ctx.update_viewport(w as i32, h as i32);
-        ctx.clear();
-
+        ctx.clear();     
+logfox!("A2600", "after clear");
+      
         // --- تهيئة المحاكي مرة واحدة ---
         if MEM_STORAGE.as_ptr().is_null() {
             let mut mem = Memory::new();
             let rom = include_bytes!("../../roms/adventure.bin");
-            mem.load_rom(rom);
-            MEM_STORAGE.write(mem);
+logfox!("A2600", "ROM size: {}", rom.len());
+mem.load_rom(rom);
+MEM_STORAGE.write(mem);
 
             let mut cpu = Cpu::new();
             let mem_ptr = MEM_STORAGE.as_mut_ptr();
@@ -285,6 +289,7 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         let mem = &mut *MEM_STORAGE.as_mut_ptr();
         let cpu = &mut *CPU_STORAGE.as_mut_ptr();
         cpu.run_frame(mem);
+      logfox!("A2600", "after run_frame, pc={}, cycles={}", cpu.pc, cpu.cycles);
 
         // --- رسم خلفية بلون TIA ---
         let bg_color = mem.tia.background_color();
@@ -295,7 +300,8 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
             bg_color,
         );
         batch.end_frame(&Mat4::ortho(0.0, w, h, 0.0, -1.0, 1.0), 0.0, 0.0, 0.0);
-
+logfox!("A2600", "after draw background");
+      
         if RUNNING.load(Ordering::Acquire) {
             if let Err(e) = ctx.swap_buffers() {
                 logfox!("A2600", "ERROR: swap_buffers: {}", e);
