@@ -59,7 +59,10 @@ jobs:
         with:
           repository: versonr7/ZAVOGLES-GUI
           path: ZAVOGLES-GUI
-    
+
+      - name: Link ZAVOGLES-GUI as sibling (matches local layout)
+        run: ln -s "$GITHUB_WORKSPACE/ZAVOGLES-GUI" "$GITHUB_WORKSPACE/../ZAVOGLES-GUI"
+
       - name: Build Debug APK
         run: cargo apk2 build -p a2600-app
         env:
@@ -70,3 +73,4 @@ jobs:
         with:
           name: a2600-debug-apk
           path: target/debug/apk/*.apk
+          
