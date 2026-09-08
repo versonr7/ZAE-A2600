@@ -9,8 +9,8 @@ use core::mem::MaybeUninit;
 use core::sync::atomic::{AtomicBool, AtomicI32, AtomicPtr, AtomicU32, Ordering};
 
 use za_gles::font::BitmapFont;
-use za_gles::{BatchRenderer, GlContext};
-use za_math::{Mat4, Rect};
+use za_gles::{BatchRenderer, GlContext, Texture};
+use za_math::{Color, Mat4, Rect};
 use za_sys::NativeWindow;
 use zae_a2600::{cpu::Cpu, memory::Memory};
 
@@ -53,6 +53,8 @@ const FONT_ATLAS_H: i32 = 512;
 
 static mut FONT_STORAGE: MaybeUninit<BitmapFont> = MaybeUninit::uninit();
 static FONT: AtomicPtr<BitmapFont> = AtomicPtr::new(core::ptr::null_mut());
+static mut SCREEN_TEX_STORAGE: MaybeUninit<Texture> = MaybeUninit::uninit();
+static SCREEN_TEX: AtomicPtr<Texture> = AtomicPtr::new(core::ptr::null_mut());
 static mut MEM_STORAGE: MaybeUninit<Memory> = MaybeUninit::uninit();
 static mut CPU_STORAGE: MaybeUninit<Cpu> = MaybeUninit::uninit();
 // ===== JNI EXPORTS =====
@@ -72,6 +74,12 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnRenderThreadE
         if !FONT.load(Ordering::Relaxed).is_null() {
             core::ptr::drop_in_place(FONT_STORAGE.as_mut_ptr());
             FONT.store(core::ptr::null_mut(), Ordering::Release);
+        }
+
+        // احذف شاشة العرض
+        if !SCREEN_TEX.load(Ordering::Relaxed).is_null() {
+            core::ptr::drop_in_place(SCREEN_TEX_STORAGE.as_mut_ptr());
+            SCREEN_TEX.store(core::ptr::null_mut(), Ordering::Release);
         }
 
         // ثم احذف BatchRenderer
@@ -226,8 +234,8 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         return;
     }
 
-  logfox!("A2600", "nativeOnFrame entered");
-  
+    logfox!("A2600", "nativeOnFrame entered");
+
     unsafe {
         let ctx_ptr = GL_CTX.load(Ordering::Acquire);
         if ctx_ptr.is_null() {
@@ -260,22 +268,31 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
             }
         }
 
+        match Texture::new() {
+            Ok(tex) => {
+                SCREEN_TEX_STORAGE.write(tex);
+                SCREEN_TEX.store(SCREEN_TEX_STORAGE.as_mut_ptr(), Ordering::Release);
+                logfox!("A2600", "Screen texture created");
+            }
+            Err(e) => logfox!("A2600", "ERROR: screen texture failed: {}", e),
+        }
+
         let batch = &mut *BATCH.load(Ordering::Acquire);
 
         let w = WIDTH.load(Ordering::Acquire) as f32;
         let h = HEIGHT.load(Ordering::Acquire) as f32;
 
         ctx.update_viewport(w as i32, h as i32);
-        ctx.clear();     
-logfox!("A2600", "after clear");
-      
+        ctx.clear();
+        logfox!("A2600", "after clear");
+
         // --- تهيئة المحاكي مرة واحدة ---
         if MEM_STORAGE.as_ptr().is_null() {
             let mut mem = Memory::new();
             let rom = include_bytes!("../../roms/adventure.bin");
-logfox!("A2600", "ROM size: {}", rom.len());
-mem.load_rom(rom);
-MEM_STORAGE.write(mem);
+            logfox!("A2600", "ROM size: {}", rom.len());
+            mem.load_rom(rom);
+            MEM_STORAGE.write(mem);
 
             let mut cpu = Cpu::new();
             let mem_ptr = MEM_STORAGE.as_mut_ptr();
@@ -289,19 +306,34 @@ MEM_STORAGE.write(mem);
         let mem = &mut *MEM_STORAGE.as_mut_ptr();
         let cpu = &mut *CPU_STORAGE.as_mut_ptr();
         cpu.run_frame(mem);
-      logfox!("A2600", "after run_frame, pc={}, cycles={}", cpu.pc, cpu.cycles);
-
-        // --- رسم خلفية بلون TIA ---
-        let bg_color = mem.tia.background_color();
-        batch.begin_frame();
-        batch.draw_quad(
-            Rect::from_coords(0.0, 0.0, w, h),
-            Rect::from_coords(0.0, 0.0, 1.0, 1.0),
-            bg_color,
+        logfox!(
+            "A2600",
+            "after run_frame, pc={}, cycles={}",
+            cpu.pc,
+            cpu.cycles
         );
-        batch.end_frame(&Mat4::ortho(0.0, w, h, 0.0, -1.0, 1.0), 0.0, 0.0, 0.0);
-logfox!("A2600", "after draw background");
-      
+
+        // --- رسم إطار المحاكي من TIA ---
+        let tex_ptr = SCREEN_TEX.load(Ordering::Acquire);
+        if !tex_ptr.is_null() {
+            let tex = &*tex_ptr;
+            let _ = tex.upload_rgba(
+                zae_a2600::tia::FB_WIDTH as i32,
+                zae_a2600::tia::FB_HEIGHT as i32,
+                &mem.tia.framebuffer,
+            );
+            batch.begin_frame();
+            batch.set_texture(tex);
+            batch.draw_quad(
+                Rect::from_coords(0.0, 0.0, w, h),
+                Rect::from_coords(0.0, 0.0, 1.0, 1.0),
+                Color::WHITE,
+            );
+            batch.end_frame(&Mat4::ortho(0.0, w, h, 0.0, -1.0, 1.0), 0.0, 0.0, 0.0);
+        }
+
+        logfox!("A2600", "after draw background");
+
         if RUNNING.load(Ordering::Acquire) {
             if let Err(e) = ctx.swap_buffers() {
                 logfox!("A2600", "ERROR: swap_buffers: {}", e);
