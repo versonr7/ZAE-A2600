@@ -289,17 +289,25 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         // --- تهيئة المحاكي مرة واحدة ---
         if MEM_STORAGE.as_ptr().is_null() {
             let mut mem = Memory::new();
-            let rom = include_bytes!("../../roms/adventure.bin");
-            logfox!("A2600", "ROM size: {}", rom.len());
-            mem.load_rom(rom);
-            MEM_STORAGE.write(mem);
+let rom = include_bytes!("../../roms/adventure.bin");
+logfox!("A2600", "ROM size: {}", rom.len());
+mem.load_rom(rom);
+MEM_STORAGE.write(mem);
 
-            let mut cpu = Cpu::new();
-            let mem_ptr = MEM_STORAGE.as_mut_ptr();
-            cpu.reset(&mut *mem_ptr);
-            CPU_STORAGE.write(cpu);
-            logfox!("A2600", "PC after reset: 0x{:04X}", cpu.pc);
+let mut cpu = Cpu::new();
+let mem_ptr = MEM_STORAGE.as_mut_ptr();
+cpu.reset(&mut *mem_ptr);
+let pc_after_reset = cpu.pc;
+CPU_STORAGE.write(cpu);
 
+let mem_ref = &*MEM_STORAGE.as_ptr();
+logfox!(
+    "A2600",
+    "PC after reset: 0x{:04X} (lo={}, hi={})",
+    pc_after_reset,
+    mem_ref.read(0xFFFC),
+    mem_ref.read(0xFFFD)
+);
             logfox!("A2600", "Atari 2600 emulator initialized");
         }
 

@@ -163,9 +163,11 @@ impl Cpu {
     }
 
     pub fn reset(&mut self, mem: &mut Memory) {
-        self.pc = self.read_word(mem, 0xFFFC);
-        self.sp = 0xFD;
-        self.status = 0x24;
+    let lo = mem.read(0xFFFC);
+    let hi = mem.read(0xFFFD);
+    self.pc = ((hi as u16) << 8) | lo as u16;
+    self.sp = 0xFD;
+    self.status = 0x24;
     }
 
     pub fn step(&mut self, mem: &mut Memory) -> u32 {
