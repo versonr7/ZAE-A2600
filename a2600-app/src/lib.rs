@@ -298,6 +298,7 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
             let mem_ptr = MEM_STORAGE.as_mut_ptr();
             cpu.reset(&mut *mem_ptr);
             CPU_STORAGE.write(cpu);
+            logfox!("A2600", "PC after reset: 0x{:04X}", cpu.pc);
 
             logfox!("A2600", "Atari 2600 emulator initialized");
         }
