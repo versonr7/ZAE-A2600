@@ -308,6 +308,16 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         cpu.run_frame(mem);
         logfox!(
             "A2600",
+            "TIA: colubk={}, colupf={}, ctrlpf={}, pf0={}, pf1={}, pf2={}",
+            mem.tia.colubk,
+            mem.tia.colupf,
+            mem.tia.ctrlpf,
+            mem.tia.pf0,
+            mem.tia.pf1,
+            mem.tia.pf2
+        );
+        logfox!(
+            "A2600",
             "after run_frame, pc={}, cycles={}",
             cpu.pc,
             cpu.cycles
@@ -317,11 +327,14 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         let tex_ptr = SCREEN_TEX.load(Ordering::Acquire);
         if !tex_ptr.is_null() {
             let tex = &*tex_ptr;
-            let _ = tex.upload_rgba(
+            match tex.upload_rgba(
                 zae_a2600::tia::FB_WIDTH as i32,
                 zae_a2600::tia::FB_HEIGHT as i32,
                 &mem.tia.framebuffer,
-            );
+            ) {
+                Ok(_) => logfox!("A2600", "Framebuffer uploaded OK"),
+                Err(e) => logfox!("A2600", "Framebuffer upload FAILED: {}", e),
+            }
             batch.begin_frame();
             batch.set_texture(tex);
             batch.draw_quad(
@@ -333,6 +346,9 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         }
 
         logfox!("A2600", "after draw background");
+        // افحص لون أول بكسل
+        let fb = &mem.tia.framebuffer;
+        logfox!("A2600", "FB[0..4]={},{},{},{}", fb[0], fb[1], fb[2], fb[3]);
 
         if RUNNING.load(Ordering::Acquire) {
             if let Err(e) = ctx.swap_buffers() {
