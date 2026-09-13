@@ -163,11 +163,11 @@ impl Cpu {
     }
 
     pub fn reset(&mut self, mem: &mut Memory) {
-    let lo = mem.read(0xFFFC);
-    let hi = mem.read(0xFFFD);
-    self.pc = ((hi as u16) << 8) | lo as u16;
-    self.sp = 0xFD;
-    self.status = 0x24;
+        let lo = mem.read(0xFFFC);
+        let hi = mem.read(0xFFFD);
+        self.pc = ((hi as u16) << 8) | lo as u16;
+        self.sp = 0xFD;
+        self.status = 0x24;
     }
 
     pub fn step(&mut self, mem: &mut Memory) -> u32 {
@@ -300,21 +300,21 @@ impl Cpu {
                 6
             }
             0xF0 => {
-                let addr = self.absolute(mem);
+                let off = self.fetch_relative(mem);
                 if self.get_flag(Self::Z) {
-                    self.pc = addr;
+                    self.pc = self.pc.wrapping_add(off as u16);
                     4
                 } else {
-                    2
+                    3
                 }
             }
             0xD0 => {
-                let addr = self.absolute(mem);
+                let off = self.fetch_relative(mem);
                 if !self.get_flag(Self::Z) {
-                    self.pc = addr;
+                    self.pc = self.pc.wrapping_add(off as u16);
                     4
                 } else {
-                    2
+                    3
                 }
             }
             0x18 => {

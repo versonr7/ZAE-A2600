@@ -235,8 +235,12 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         return;
     }
 
- logfox!("A2600", "EMU_INITIALIZED={}", EMU_INITIALIZED.load(Ordering::Acquire));
-logfox!("A2600", "nativeOnFrame entered");
+    logfox!(
+        "A2600",
+        "EMU_INITIALIZED={}",
+        EMU_INITIALIZED.load(Ordering::Acquire)
+    );
+    logfox!("A2600", "nativeOnFrame entered");
 
     unsafe {
         let ctx_ptr = GL_CTX.load(Ordering::Acquire);
@@ -248,37 +252,37 @@ logfox!("A2600", "nativeOnFrame entered");
         let ctx = &mut *ctx_ptr;
 
         let batch_ptr = BATCH.load(Ordering::Acquire);
-if batch_ptr.is_null() {
-    if let Err(e) = ctx.make_current() {
-        logfox!("A2600", "ERROR: make_current failed: {}", e);
-        FRAME_LOCK.store(false, Ordering::Release);
-        return;
-    }
-    ctx.setup_gl_state();
+        if batch_ptr.is_null() {
+            if let Err(e) = ctx.make_current() {
+                logfox!("A2600", "ERROR: make_current failed: {}", e);
+                FRAME_LOCK.store(false, Ordering::Release);
+                return;
+            }
+            ctx.setup_gl_state();
 
-    match BatchRenderer::<400, 600>::new() {
-        Ok(batch) => {
-            BATCH_STORAGE.write(batch);
-            BATCH.store(BATCH_STORAGE.as_mut_ptr(), Ordering::Release);
-            logfox!("A2600", "BatchRenderer created on render thread");
-        }
-        Err(e) => {
-            logfox!("A2600", "ERROR: BatchRenderer failed: {}", e);
-            FRAME_LOCK.store(false, Ordering::Release);
-            return;
-        }
-    }
+            match BatchRenderer::<400, 600>::new() {
+                Ok(batch) => {
+                    BATCH_STORAGE.write(batch);
+                    BATCH.store(BATCH_STORAGE.as_mut_ptr(), Ordering::Release);
+                    logfox!("A2600", "BatchRenderer created on render thread");
+                }
+                Err(e) => {
+                    logfox!("A2600", "ERROR: BatchRenderer failed: {}", e);
+                    FRAME_LOCK.store(false, Ordering::Release);
+                    return;
+                }
+            }
 
-    // ✅ انقل كتلة Texture::new() هنا، داخل if batch_ptr.is_null()
-    match Texture::new() {
-        Ok(tex) => {
-            SCREEN_TEX_STORAGE.write(tex);
-            SCREEN_TEX.store(SCREEN_TEX_STORAGE.as_mut_ptr(), Ordering::Release);
-            logfox!("A2600", "Screen texture created");
+            // ✅ انقل كتلة Texture::new() هنا، داخل if batch_ptr.is_null()
+            match Texture::new() {
+                Ok(tex) => {
+                    SCREEN_TEX_STORAGE.write(tex);
+                    SCREEN_TEX.store(SCREEN_TEX_STORAGE.as_mut_ptr(), Ordering::Release);
+                    logfox!("A2600", "Screen texture created");
+                }
+                Err(e) => logfox!("A2600", "ERROR: screen texture failed: {}", e),
+            }
         }
-        Err(e) => logfox!("A2600", "ERROR: screen texture failed: {}", e),
-    }
-}
 
         let batch = &mut *BATCH.load(Ordering::Acquire);
 
@@ -291,29 +295,54 @@ if batch_ptr.is_null() {
 
         // --- تهيئة المحاكي مرة واحدة ---
         if !EMU_INITIALIZED.load(Ordering::Acquire) {
-    let mut mem = Memory::new();
-    let rom = include_bytes!("../../roms/adventure.bin");
-    logfox!("A2600", "ROM size: {}", rom.len());
-logfox!("A2600", "rom[0]=0x{:02X}, rom[0xFFF]=0x{:02X}", rom[0], rom[rom.len()-1]);
-mem.load_rom(rom);
-MEM_STORAGE.write(mem);
+            let mut mem = Memory::new();
+            let rom = include_bytes!("../../roms/adventure.bin");
+            logfox!("A2600", "ROM size: {}", rom.len());
+            logfox!(
+                "A2600",
+                "rom[0]=0x{:02X}, rom[0xFFF]=0x{:02X}",
+                rom[0],
+                rom[rom.len() - 1]
+            );
+            mem.load_rom(rom);
+            MEM_STORAGE.write(mem);
 
-    let mut cpu = Cpu::new();
-    let mem_ptr = MEM_STORAGE.as_mut_ptr();
-    cpu.reset(&mut *mem_ptr);
-    let pc_after_reset = cpu.pc;
-    CPU_STORAGE.write(cpu);
+            let mut cpu = Cpu::new();
+            let mem_ptr = MEM_STORAGE.as_mut_ptr();
+            cpu.reset(&mut *mem_ptr);
+            let pc_after_reset = cpu.pc;
+            CPU_STORAGE.write(cpu);
 
-    let mem_ref = &*MEM_STORAGE.as_ptr();
-    logfox!(
-        "A2600",
-        "PC after reset: 0x{:04X} (lo={}, hi={})",
-        pc_after_reset,
-        mem_ref.read(0xFFFC),
-        mem_ref.read(0xFFFD)
-    );
-    logfox!("A2600", "Atari 2600 emulator initialized");
-    EMU_INITIALIZED.store(true, Ordering::Release);
+            // 🔬 تتبع أول 30 تعليمة لمعرفة أين ينحرف PC
+            {
+                let mem_ref = &mut *MEM_STORAGE.as_mut_ptr();
+                let cpu_ref = &mut *CPU_STORAGE.as_mut_ptr();
+                for i in 0..30 {
+                    let pc_before = cpu_ref.pc;
+                    let opcode = mem_ref.read(pc_before);
+                    logfox!(
+                        "A2600",
+                        "trace[{}]: PC=0x{:04X} OP=0x{:02X}",
+                        i,
+                        pc_before,
+                        opcode
+                    );
+                    cpu_ref.step(mem_ref);
+                }
+                cpu_ref.reset(mem_ref);
+                logfox!("A2600", "trace complete, CPU reset");
+            }
+
+            let mem_ref = &*MEM_STORAGE.as_ptr();
+            logfox!(
+                "A2600",
+                "PC after reset: 0x{:04X} (lo={}, hi={})",
+                pc_after_reset,
+                mem_ref.read(0xFFFC),
+                mem_ref.read(0xFFFD)
+            );
+            logfox!("A2600", "Atari 2600 emulator initialized");
+            EMU_INITIALIZED.store(true, Ordering::Release);
         }
 
         // --- تشغيل إطار واحد ---
