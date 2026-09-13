@@ -42,3 +42,20 @@ mod tests {
         assert_ne!(cpu.pc, 0, "PC should not be zero after execution");
     }
 }
+
+#[test]
+fn test_reset_pc_in_rom() {
+    let rom = include_bytes!("../../roms/adventure.bin");
+    let mut mem = memory::Memory::new();
+    mem.load_rom(rom);
+    let mut cpu = cpu::Cpu::new();
+    cpu.reset(&mut mem);
+    // PC في 6507 قد يكون 0xF000 أو 0xFF00، لكن عند تقنيع 13 بت يجب أن يقع في نطاق ROM
+    let masked = cpu.pc & 0x1FFF;
+    assert!(
+        masked >= 0x1000 && masked <= 0x1FFF,
+        "PC after reset = 0x{:04X}, masked = 0x{:04X}",
+        cpu.pc,
+        masked
+    );
+}

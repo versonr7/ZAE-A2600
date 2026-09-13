@@ -235,7 +235,8 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         return;
     }
 
-    logfox!("A2600", "nativeOnFrame entered");
+ logfox!("A2600", "EMU_INITIALIZED={}", EMU_INITIALIZED.load(Ordering::Acquire));
+logfox!("A2600", "nativeOnFrame entered");
 
     unsafe {
         let ctx_ptr = GL_CTX.load(Ordering::Acquire);
@@ -293,8 +294,9 @@ if batch_ptr.is_null() {
     let mut mem = Memory::new();
     let rom = include_bytes!("../../roms/adventure.bin");
     logfox!("A2600", "ROM size: {}", rom.len());
-    mem.load_rom(rom);
-    MEM_STORAGE.write(mem);
+logfox!("A2600", "rom[0]=0x{:02X}, rom[0xFFF]=0x{:02X}", rom[0], rom[rom.len()-1]);
+mem.load_rom(rom);
+MEM_STORAGE.write(mem);
 
     let mut cpu = Cpu::new();
     let mem_ptr = MEM_STORAGE.as_mut_ptr();
