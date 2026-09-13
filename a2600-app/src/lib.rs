@@ -39,6 +39,7 @@ static HEIGHT: AtomicI32 = AtomicI32::new(0);
 static FRAME_COUNT: AtomicU32 = AtomicU32::new(0);
 static INITIALIZED: AtomicBool = AtomicBool::new(false);
 static FRAME_LOCK: AtomicBool = AtomicBool::new(false);
+static TRACE_SHOWN: AtomicBool = AtomicBool::new(false);
 
 static mut GL_CTX_STORAGE: MaybeUninit<GlContext> = MaybeUninit::uninit();
 static GL_CTX: AtomicPtr<GlContext> = AtomicPtr::new(core::ptr::null_mut());
@@ -313,11 +314,13 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
             let pc_after_reset = cpu.pc;
             CPU_STORAGE.write(cpu);
 
-            // 🔬 تتبع أول 30 تعليمة لمعرفة أين ينحرف PC
-            {
+            // 🔬 تتبع أول 100 تعليمة (مرة واحدة فقط)
+            if !TRACE_SHOWN.load(Ordering::Acquire) {
                 let mem_ref = &mut *MEM_STORAGE.as_mut_ptr();
                 let cpu_ref = &mut *CPU_STORAGE.as_mut_ptr();
-                for i in 0..30 {
+                let pc_start = cpu_ref.pc;
+                logfox!("A2600", "=== TRACE START (PC=0x{:04X}) ===", pc_start);
+                for i in 0..100 {
                     let pc_before = cpu_ref.pc;
                     let opcode = mem_ref.read(pc_before);
                     logfox!(
@@ -329,7 +332,9 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
                     );
                     cpu_ref.step(mem_ref);
                 }
+                logfox!("A2600", "=== TRACE END ===");
                 cpu_ref.reset(mem_ref);
+                TRACE_SHOWN.store(true, Ordering::Release);
                 logfox!("A2600", "trace complete, CPU reset");
             }
 

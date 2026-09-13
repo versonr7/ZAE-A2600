@@ -1055,7 +1055,14 @@ impl Cpu {
                 2
             }
             0xEA => 2,
-            0x00 => 7, // BRK مبسط
+            0x00 => {
+                let pc_after = self.pc.wrapping_add(1);
+                self.push_word(mem, pc_after);
+                self.push_byte(mem, self.status | 0x10); // B flag set
+                self.set_flag(Self::I, true);
+                self.pc = self.read_word(mem, 0xFFFE); // IRQ vector
+                7
+            }
             0x40 => {
                 self.status = self.pull_byte(mem);
                 self.pc = self.pull_word(mem);
