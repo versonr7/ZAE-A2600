@@ -336,7 +336,7 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
                 logfox!("A2600", "State: A=0x{:02X} X=0x{:02X} Y=0x{:02X} SP=0x{:02X} PC=0x{:04X} status=0x{:02X}",
         cpu_ref.a, cpu_ref.x, cpu_ref.y, cpu_ref.sp, cpu_ref.pc, cpu_ref.status);
                 cpu_ref.reset(mem_ref);
-                TRACE_SHOWN = true;
+                TRACE_SHOWN.store(true, Ordering::Release);
                 logfox!("A2600", "trace complete, CPU reset");
             }
 
