@@ -282,8 +282,10 @@ impl Tia {
     // تحويل مبسّط (رمادي وليس ألوان NTSC حقيقية بعد) — يكفي حالياً
     // نميّز فيه الـ playfield عن الخلفية بوضوح. نحسّنه لاحقاً.
     fn get_color(&self, value: u8) -> (u8, u8, u8) {
-        // bit 7 (التوهج) يُتجاهل في NTSC
-        NTSC_PALETTE[(value & 0x7F) as usize]
+        // فهرسة NTSC الصحيحة: bits 4-6 = hue، bits 1-3 = luminance
+        let hue = (value >> 4) & 0x07; // 0-7 (8 ألوان)
+        let lum = (value >> 1) & 0x07; // 0-7 (8 مستويات سطوع)
+        NTSC_PALETTE[(hue as usize) * 8 + (lum as usize)]
     }
 
     fn render_scanline(&mut self, row: usize) {
