@@ -35,13 +35,13 @@ impl Memory {
 
     fn riot_read(&self, addr: u16) -> u8 {
         match addr & 0x1F {
-            0x04 => self.riot_timer,
-            0x05 => {
+            0x04 | 0x06 => self.riot_timer, // INTIM
+            0x05 | 0x07 => {
                 if self.riot_timer == 0 {
                     0x80
                 } else {
                     0x00
-                }
+                } // INSTAT
             }
             _ => 0,
         }
@@ -49,27 +49,32 @@ impl Memory {
 
     fn riot_write(&mut self, addr: u16, value: u8) {
         match addr & 0x1F {
-            0x06 => {
+            0x14 => {
+                // TIM1T
                 self.riot_timer = value;
                 self.riot_prescaler_value = 1;
                 self.riot_prescaler = 1;
             }
-            0x07 => {
+            0x15 => {
+                // TIM8T
                 self.riot_timer = value;
                 self.riot_prescaler_value = 8;
                 self.riot_prescaler = 8;
             }
-            0x08 => {
+            0x16 => {
+                // TIM64T  ← الأهم!
                 self.riot_timer = value;
                 self.riot_prescaler_value = 64;
                 self.riot_prescaler = 64;
             }
-            0x09 => {
+            0x17 => {
+                // T1024T
                 self.riot_timer = value;
                 self.riot_prescaler_value = 1024;
                 self.riot_prescaler = 1024;
             }
             0x02 => {
+                // SWCHB
                 self.riot_regs[2] = value;
             }
             _ => {}
