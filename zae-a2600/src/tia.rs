@@ -54,7 +54,7 @@ impl Tia {
         match addr {
             TIA_VBLANK => {
                 if self.vblank {
-                    0x02
+                    0x80
                 } else {
                     0x00
                 }

@@ -1,5 +1,5 @@
 [workspace]
-members = ["zae-a2600", "a2600-app"]
+members = ["zae-a2600", "a2600-app", "za-disasm"]
 resolver = "2"
 
 [profile.dev]

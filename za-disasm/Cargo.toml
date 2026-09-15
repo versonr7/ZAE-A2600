@@ -1,0 +1,13 @@
+[package]
+name = "za-disasm"
+version = "0.1.0"
+edition = "2021"
+authors = ["versonr7"]
+description = "Zero Allocation MOS 6502 disassembler"
+license = "GPL-3.0-only"
+
+[lib]
+name = "za_disasm"
+crate-type = ["lib"]
+
+[dependencies]

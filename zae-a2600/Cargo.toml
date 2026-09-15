@@ -14,3 +14,6 @@ crate-type = ["lib"]
 za-math = { path = "../../ZAVOGLES-GUI/za-math" }
 za-gles = { path = "../../ZAVOGLES-GUI/za-gles" }
 za-xmb = { path = "../../ZAVOGLES-GUI/za-xmb" }
+
+[dev-dependencies]
+za-disasm = { path = "../za-disasm" }
