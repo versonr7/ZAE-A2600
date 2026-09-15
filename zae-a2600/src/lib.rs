@@ -20,9 +20,15 @@ mod tests {
     #[test]
     fn test_tia_background() {
         let mut mem = memory::Memory::new();
-        mem.write(0x09, 0x7F); // COLUBK
+        mem.write(0x09, 0x0E); // COLUBK = 14 → أبيض في NTSC
         let color = mem.tia.background_color();
-        assert!(color.r > 0.9 && color.g > 0.9 && color.b > 0.9);
+        assert!(
+            color.r > 0.9 && color.g > 0.9 && color.b > 0.9,
+            "expected white, got r={} g={} b={}",
+            color.r,
+            color.g,
+            color.b
+        );
     }
 
     #[test]

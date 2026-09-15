@@ -453,12 +453,6 @@ pub fn format(out: &mut [u8], ins: &Instruction) -> usize {
 mod tests {
     use super::*;
 
-    fn fmt(buf: &[u8]) -> &str {
-        // alloc is available only for tests; unsafe but works
-        let _ = buf;
-        "TODO"
-    }
-
     #[test]
     fn test_decode_lda_immediate() {
         let ins = decode(&[0xA9, 0x42], 0xF000);
