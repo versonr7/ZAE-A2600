@@ -271,7 +271,7 @@ impl Tia {
             0x0D => self.pf0 = value,
             0x0E => self.pf1 = value,
             0x0F => self.pf2 = value,
-            0x10 => self.hpos_p0 = hpos_from_cycle(self.cycle_in_scanline),
+            0x10 => self.hpos_p0 = 76, // اختبار: منتصف الشاشة
             0x11 => self.hpos_p1 = hpos_from_cycle(self.cycle_in_scanline),
             0x12 => self.hpos_m0 = hpos_from_cycle(self.cycle_in_scanline),
             0x13 => self.hpos_m1 = hpos_from_cycle(self.cycle_in_scanline),
