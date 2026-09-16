@@ -149,6 +149,21 @@ pub const FB_WIDTH: usize = 160;
 pub const FB_HEIGHT: usize = 192;
 pub const FB_SIZE: usize = FB_WIDTH * FB_HEIGHT * 4;
 
+/// يحوّل موقع الشعاع (cycle) إلى إحداثي أفقي (0-159)
+fn hpos_from_cycle(cycle: u32) -> u8 {
+    // TIA يبدأ الرسم المرئي بعد 68 دورة
+    // كل دورة CPU = 3 بكسل
+    if cycle < 68 {
+        return 0;
+    }
+    let px = (cycle - 68) * 3;
+    if px > 159 {
+        159
+    } else {
+        px as u8
+    }
+}
+
 pub struct Tia {
     pub scanline: u16,
     pub colubk: u8,
@@ -256,11 +271,11 @@ impl Tia {
             0x0D => self.pf0 = value,
             0x0E => self.pf1 = value,
             0x0F => self.pf2 = value,
-            0x10 => self.hpos_p0 = (self.cycle_in_scanline as u8).wrapping_mul(3),
-            0x11 => self.hpos_p1 = (self.cycle_in_scanline as u8).wrapping_mul(3),
-            0x12 => self.hpos_m0 = (self.cycle_in_scanline as u8).wrapping_mul(3),
-            0x13 => self.hpos_m1 = (self.cycle_in_scanline as u8).wrapping_mul(3),
-            0x14 => self.hpos_bl = (self.cycle_in_scanline as u8).wrapping_mul(3),
+            0x10 => self.hpos_p0 = hpos_from_cycle(self.cycle_in_scanline),
+            0x11 => self.hpos_p1 = hpos_from_cycle(self.cycle_in_scanline),
+            0x12 => self.hpos_m0 = hpos_from_cycle(self.cycle_in_scanline),
+            0x13 => self.hpos_m1 = hpos_from_cycle(self.cycle_in_scanline),
+            0x14 => self.hpos_bl = hpos_from_cycle(self.cycle_in_scanline),
             0x1B => self.grp0 = value,
             0x1C => self.grp1 = value,
             0x1D => self.enam0 = value & 0x02 != 0,
