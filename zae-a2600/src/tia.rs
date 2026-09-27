@@ -151,16 +151,18 @@ pub const FB_SIZE: usize = FB_WIDTH * FB_HEIGHT * 4;
 
 /// يحوّل موقع الشعاع (cycle) إلى إحداثي أفقي (0-159)
 fn hpos_from_cycle(cycle: u32) -> u8 {
-    // TIA يبدأ الرسم المرئي بعد 68 دورة
-    // كل دورة CPU = 3 بكسل
-    if cycle < 68 {
-        return 0;
-    }
-    let px = (cycle - 68) * 3;
-    if px > 159 {
-        159
+    // 1 دورة CPU = 3 color clocks
+    // الرسم المرئي يبدأ عند color clock 68
+    let cc = cycle * 3;
+    if cc < 68 {
+        0
     } else {
-        px as u8
+        let px = cc - 68;
+        if px > 159 {
+            159
+        } else {
+            px as u8
+        }
     }
 }
 
@@ -271,7 +273,7 @@ impl Tia {
             0x0D => self.pf0 = value,
             0x0E => self.pf1 = value,
             0x0F => self.pf2 = value,
-            0x10 => self.hpos_p0 = 76, // اختبار: منتصف الشاشة
+            0x10 => self.hpos_p0 = hpos_from_cycle(self.cycle_in_scanline),
             0x11 => self.hpos_p1 = hpos_from_cycle(self.cycle_in_scanline),
             0x12 => self.hpos_m0 = hpos_from_cycle(self.cycle_in_scanline),
             0x13 => self.hpos_m1 = hpos_from_cycle(self.cycle_in_scanline),
@@ -281,18 +283,18 @@ impl Tia {
             0x1D => self.enam0 = value & 0x02 != 0,
             0x1E => self.enam1 = value & 0x02 != 0,
             0x1F => self.enabl = value & 0x02 != 0,
-            0x20 => self.hmove_pending = ((value >> 4) as i8) - 8,
-            0x21 => self.hmove_pending = ((value >> 4) as i8) - 8,
-            0x22 => self.hmove_pending = ((value >> 4) as i8) - 8,
-            0x23 => self.hmove_pending = ((value >> 4) as i8) - 8,
-            0x24 => self.hmove_pending = ((value >> 4) as i8) - 8,
+            0x20 | 0x21 | 0x22 | 0x23 | 0x24 => {
+                let nibble = (value >> 4) & 0x0F;
+                // 1-7 → تحرك يميناً، 8 → لا حركة، 9-15 → تحرك يساراً
+                self.hmove_pending = 8 - (nibble as i8);
+            }
             0x2A => {
-                let d = self.hmove_pending;
-                self.hpos_p0 = (self.hpos_p0 as i16 - d as i16).max(0) as u8;
-                self.hpos_p1 = (self.hpos_p1 as i16 - d as i16).max(0) as u8;
-                self.hpos_m0 = (self.hpos_m0 as i16 - d as i16).max(0) as u8;
-                self.hpos_m1 = (self.hpos_m1 as i16 - d as i16).max(0) as u8;
-                self.hpos_bl = (self.hpos_bl as i16 - d as i16).max(0) as u8;
+                let d = self.hmove_pending as i16;
+                self.hpos_p0 = ((self.hpos_p0 as i16 + d).clamp(0, 159)) as u8;
+                self.hpos_p1 = ((self.hpos_p1 as i16 + d).clamp(0, 159)) as u8;
+                self.hpos_m0 = ((self.hpos_m0 as i16 + d).clamp(0, 159)) as u8;
+                self.hpos_m1 = ((self.hpos_m1 as i16 + d).clamp(0, 159)) as u8;
+                self.hpos_bl = ((self.hpos_bl as i16 + d).clamp(0, 159)) as u8;
             }
             0x2B => {
                 self.hmove_pending = 0;
