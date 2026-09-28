@@ -28,7 +28,7 @@ impl Memory {
             riot_prescaler: 1,
             riot_prescaler_value: 1,
             swcha: 0xFF,
-            swchb: 0x03,
+            swchb: 0x07, // RESET=1، SELECT=1، Color Mode=1
         }
     }
 

@@ -358,6 +358,15 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         cpu.run_frame(mem);
         logfox!(
             "A2600",
+            "Regs: swcha=0x{:02X} swchb=0x{:02X} int=0x{:02X} p0=0x{:02X} p1=0x{:02X}",
+            mem.swcha,
+            mem.swchb,
+            mem.tia.inpt4,
+            mem.tia.grp0,
+            mem.tia.grp1
+        );
+        logfox!(
+            "A2600",
             "TIA: colubk={}, colupf={}, ctrlpf={}, pf0={}, pf1={}, pf2={}",
             mem.tia.colubk,
             mem.tia.colupf,
