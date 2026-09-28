@@ -198,6 +198,7 @@ pub struct Tia {
     pub refp0: bool,
     pub refp1: bool,
     pub hmove_pending: i8,
+    pub inpt4: u8,
 }
 
 impl Tia {
@@ -232,6 +233,7 @@ impl Tia {
             refp0: false,
             refp1: false,
             hmove_pending: 0,
+            inpt4: 0x80,
         }
     }
 
@@ -245,6 +247,8 @@ impl Tia {
                 }
             }
             TIA_COLUBK => self.colubk,
+            0x3C => self.inpt4, // INPT4 - زر Fire للاعب 0
+            0x3D => 0x80,       // INPT5 - غير مضغوط
             _ => 0,
         }
     }
