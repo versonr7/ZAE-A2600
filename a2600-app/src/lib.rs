@@ -358,6 +358,13 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         cpu.run_frame(mem);
         logfox!(
             "A2600",
+            "RIOT: timer={} prescaler={} presc_val={}",
+            mem.riot_timer,
+            mem.riot_prescaler,
+            mem.riot_prescaler_value
+        );
+        logfox!(
+            "A2600",
             "Regs: swcha=0x{:02X} swchb=0x{:02X} int=0x{:02X} p0=0x{:02X} p1=0x{:02X}",
             mem.swcha,
             mem.swchb,

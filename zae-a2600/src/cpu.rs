@@ -175,17 +175,15 @@ impl Cpu {
         self.pc = self.pc.wrapping_add(1);
         let base_cycles = self.execute(opcode, mem);
 
-        // تقديم الوقت لـ TIA و RIOT
         mem.tia.tick(base_cycles);
-        mem.tick_riot(base_cycles);
+        mem.tick_riot(base_cycles); // ← تأكد أن هذا السطر موجود
 
         let mut total_cycles = base_cycles;
 
-        // إذا كُتب WSYNC، نوقف CPU حتى نهاية خط المسح الحالي
         if mem.tia.wsync {
             let remaining = 76 - (mem.tia.cycle_in_scanline % 76);
             mem.tia.tick(remaining);
-            mem.tick_riot(remaining);
+            mem.tick_riot(remaining); // ← تأكد أن هذا السطر موجود
             total_cycles += remaining;
             mem.tia.wsync = false;
         }

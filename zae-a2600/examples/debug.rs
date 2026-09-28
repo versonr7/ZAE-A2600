@@ -3,8 +3,6 @@ use zae_a2600::{cpu::Cpu, memory::Memory};
 
 fn main() {
     let rom = include_bytes!("../../roms/adventure.bin");
-    println!("ROM size: {}", rom.len());
-
     let mut mem = Memory::new();
     mem.load_rom(rom);
 
@@ -14,9 +12,10 @@ fn main() {
 
     let mut out = [0u8; 32];
 
-    for i in 0..200_000 {
+    for i in 0..100_000 {
         let pc = cpu.pc;
 
+        // اطبع كل 5000 خطوة، مع المؤقت
         if i % 5000 == 0 {
             let offset = (pc & 0x0FFF) as usize;
             let code = &mem.rom[offset..(offset + 3).min(mem.rom.len())];
@@ -25,18 +24,29 @@ fn main() {
             let text = core::str::from_utf8(&out[..n]).unwrap_or("???");
 
             println!(
-                "[{:>7}] PC=0x{:04X}  A=0x{:02X} X=0x{:02X} Y=0x{:02X}  | {:<16} | TIA: bg={} pf={} ctrl=0x{:02X}  PF: 0x{:02X}/0x{:02X}/0x{:02X}",
-                i, pc, cpu.a, cpu.x, cpu.y, text,
-                mem.tia.colubk, mem.tia.colupf, mem.tia.ctrlpf,
-                mem.tia.pf0, mem.tia.pf1, mem.tia.pf2
+                "[{:>6}] PC=0x{:04X}  {} | TIA: bg={} pf={} | RIOT: t={} presc={}/{} writes={}",
+                i,
+                pc,
+                text,
+                mem.tia.colubk,
+                mem.tia.colupf,
+                mem.riot_timer,
+                mem.riot_prescaler,
+                mem.riot_prescaler_value,
+                mem.tim64t_writes,
             );
         }
         cpu.step(&mut mem);
     }
 
-    println!("\n--- TIA في النهاية ---");
+    println!("\n--- TIA Final ---");
     println!(
-        "colubk={} colupf={} ctrlpf={} pf0=0x{:02X} pf1=0x{:02X} pf2=0x{:02X}",
-        mem.tia.colubk, mem.tia.colupf, mem.tia.ctrlpf, mem.tia.pf0, mem.tia.pf1, mem.tia.pf2
+        "colubk={} colupf={} pf0={:02X}",
+        mem.tia.colubk, mem.tia.colupf, mem.tia.pf0
+    );
+    println!("--- RIOT Final ---");
+    println!(
+        "timer={} prescaler={} presc_val={}",
+        mem.riot_timer, mem.riot_prescaler, mem.riot_prescaler_value
     );
 }
