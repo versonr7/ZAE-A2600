@@ -92,19 +92,18 @@ public boolean onTouchEvent(MotionEvent event) {
         float xr = x / w;
         float yr = y / h;
 
-        // Joystick على يسار النصف السفلي
         if (yr > 0.6f && xr < 0.4f) {
-            // منطقة Joystick
             if (yr < 0.75f) up = true;
             else if (yr > 0.9f) down = true;
             else if (xr < 0.2f) left = true;
             else right = true;
         }
-        // زر Fire على يمين النصف السفلي
         else if (yr > 0.6f && xr > 0.6f) {
             fire = true;
         }
     }
+
+    Log.i(TAG, "Touch: xr=" + (x/w) + " yr=" + (y/h) + " → U" + (up?1:0) + " D" + (down?1:0) + " L" + (left?1:0) + " R" + (right?1:0) + " F" + (fire?1:0));
 
     nativeOnJoystick(up ? 1 : 0, down ? 1 : 0, left ? 1 : 0, right ? 1 : 0, fire ? 1 : 0);
     return true;

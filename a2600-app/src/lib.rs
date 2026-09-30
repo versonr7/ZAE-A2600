@@ -47,6 +47,11 @@ static GL_CTX: AtomicPtr<GlContext> = AtomicPtr::new(core::ptr::null_mut());
 static mut BATCH_STORAGE: MaybeUninit<BatchRenderer<400, 600>> = MaybeUninit::uninit();
 static BATCH: AtomicPtr<BatchRenderer<400, 600>> = AtomicPtr::new(core::ptr::null_mut());
 
+static JOY_UP: AtomicBool = AtomicBool::new(false);
+static JOY_DOWN: AtomicBool = AtomicBool::new(false);
+static JOY_LEFT: AtomicBool = AtomicBool::new(false);
+static JOY_RIGHT: AtomicBool = AtomicBool::new(false);
+static JOY_FIRE: AtomicBool = AtomicBool::new(false);
 // --- Font atlas ---
 static FONT_ATLAS_BYTES: &[u8] = include_bytes!("../../assets/font_atlas.rgba");
 const FONT_ATLAS_W: i32 = 512;
@@ -229,14 +234,21 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnJoystick(
     right: i32,
     fire: i32,
 ) {
-    unsafe {
-        if !EMU_INITIALIZED.load(Ordering::Acquire) {
-            return;
-        }
-        let mem = &mut *MEM_STORAGE.as_mut_ptr();
-        mem.set_joystick(up != 0, down != 0, left != 0, right != 0);
-        mem.set_fire(fire != 0);
-    }
+    logfox!(
+        "A2600",
+        "Joystick: U{} D{} L{} R{} F{}",
+        up,
+        down,
+        left,
+        right,
+        fire
+    );
+
+    JOY_UP.store(up != 0, Ordering::Release);
+    JOY_DOWN.store(down != 0, Ordering::Release);
+    JOY_LEFT.store(left != 0, Ordering::Release);
+    JOY_RIGHT.store(right != 0, Ordering::Release);
+    JOY_FIRE.store(fire != 0, Ordering::Release);
 }
 
 #[no_mangle]
@@ -376,6 +388,14 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         let mem = &mut *MEM_STORAGE.as_mut_ptr();
         let cpu = &mut *CPU_STORAGE.as_mut_ptr();
         cpu.run_frame(mem);
+        // طبّق المدخلات الحالية على الذاكرة (على خيط الرسم)
+        mem.set_joystick(
+            JOY_UP.load(Ordering::Acquire),
+            JOY_DOWN.load(Ordering::Acquire),
+            JOY_LEFT.load(Ordering::Acquire),
+            JOY_RIGHT.load(Ordering::Acquire),
+        );
+        mem.set_fire(JOY_FIRE.load(Ordering::Acquire));
         logfox!(
             "A2600",
             "RIOT: timer={} prescaler={} presc_val={}",
