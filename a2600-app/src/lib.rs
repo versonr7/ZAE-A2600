@@ -220,6 +220,26 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnTouch(
 }
 
 #[no_mangle]
+pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnJoystick(
+    _env: *mut c_void,
+    _class: *mut c_void,
+    up: i32,
+    down: i32,
+    left: i32,
+    right: i32,
+    fire: i32,
+) {
+    unsafe {
+        if !EMU_INITIALIZED.load(Ordering::Acquire) {
+            return;
+        }
+        let mem = &mut *MEM_STORAGE.as_mut_ptr();
+        mem.set_joystick(up != 0, down != 0, left != 0, right != 0);
+        mem.set_fire(fire != 0);
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
     _env: *mut c_void,
     _class: *mut c_void,
@@ -356,13 +376,13 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         let mem = &mut *MEM_STORAGE.as_mut_ptr();
         let cpu = &mut *CPU_STORAGE.as_mut_ptr();
         cpu.run_frame(mem);
-        logfox!(
-            "A2600",
-            "RIOT: timer={} prescaler={} presc_val={}",
-            mem.riot_timer,
-            mem.riot_prescaler,
-            mem.riot_prescaler_value
-        );
+      logfox!(
+    "A2600",
+    "RIOT: timer={} prescaler={} presc_val={}",
+    mem.riot_timer,
+    mem.riot_prescaler,
+    mem.riot_prescaler_value
+);
         logfox!(
             "A2600",
             "Regs: swcha=0x{:02X} swchb=0x{:02X} int=0x{:02X} p0=0x{:02X} p1=0x{:02X}",

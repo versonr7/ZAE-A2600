@@ -26,7 +26,8 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
     public static native void nativeOnTouch(float x, float y, int action);
     public static native void nativeOnFrame();
     public static native void nativeOnRenderThreadExit();
-
+    public static native void nativeOnJoystick(int up, int down, int left, int right, int fire);
+  
     private SurfaceView surfaceView;
     private boolean running = false;
     private Thread renderThread;
@@ -39,7 +40,6 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
         surfaceView = new SurfaceView(this);
         surfaceView.getHolder().addCallback(this);
         setContentView(surfaceView);
-
         nativeOnCreate();
     }
 
@@ -79,13 +79,36 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
     }
 
     @Override
-    public boolean onTouchEvent(MotionEvent event) {
-        int action = event.getActionMasked();
-        float x = event.getX();
-        float y = event.getY();
-        nativeOnTouch(x, y, action);
-        return true;
+public boolean onTouchEvent(MotionEvent event) {
+    float x = event.getX();
+    float y = event.getY();
+    int w = surfaceView.getWidth();
+    int h = surfaceView.getHeight();
+
+    boolean up = false, down = false, left = false, right = false, fire = false;
+
+    int action = event.getActionMasked();
+    if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE) {
+        float xr = x / w;
+        float yr = y / h;
+
+        // Joystick على يسار النصف السفلي
+        if (yr > 0.6f && xr < 0.4f) {
+            // منطقة Joystick
+            if (yr < 0.75f) up = true;
+            else if (yr > 0.9f) down = true;
+            else if (xr < 0.2f) left = true;
+            else right = true;
+        }
+        // زر Fire على يمين النصف السفلي
+        else if (yr > 0.6f && xr > 0.6f) {
+            fire = true;
+        }
     }
+
+    nativeOnJoystick(up ? 1 : 0, down ? 1 : 0, left ? 1 : 0, right ? 1 : 0, fire ? 1 : 0);
+    return true;
+}
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
@@ -129,5 +152,8 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
             }
         }
         nativeOnRenderThreadExit();
+    }
+}
+private void setupTouchControls() {
     }
 }
