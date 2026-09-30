@@ -142,7 +142,7 @@ public boolean onTouchEvent(MotionEvent event) {
         // لا تستدع nativeOnSurfaceDestroyed هنا
     }
 
-    private void renderLoop() {
+        private void renderLoop() {
         while (running) {
             nativeOnFrame();
             try {
@@ -153,7 +153,8 @@ public boolean onTouchEvent(MotionEvent event) {
         }
         nativeOnRenderThreadExit();
     }
-}
-private void setupTouchControls() {
+
+    private void setupTouchControls() {
+        // لا شيء حالياً - المنطق في onTouchEvent
     }
-}
+}   // ← قوس إغلاق الكلاس هنا فقط (مرة واحدة)
