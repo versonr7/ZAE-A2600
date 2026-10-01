@@ -52,6 +52,17 @@ static JOY_DOWN: AtomicBool = AtomicBool::new(false);
 static JOY_LEFT: AtomicBool = AtomicBool::new(false);
 static JOY_RIGHT: AtomicBool = AtomicBool::new(false);
 static JOY_FIRE: AtomicBool = AtomicBool::new(false);
+static JOY_RESET: AtomicBool = AtomicBool::new(false);
+static RESET_FRAMES: AtomicU32 = AtomicU32::new(0);
+
+#[no_mangle]
+pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnReset(
+    _env: *mut c_void,
+    _class: *mut c_void,
+) {
+    logfox!("A2600", "RESET pressed");
+    RESET_FRAMES.store(10, Ordering::Release);
+}
 // --- Font atlas ---
 static FONT_ATLAS_BYTES: &[u8] = include_bytes!("../../assets/font_atlas.rgba");
 const FONT_ATLAS_W: i32 = 512;
@@ -396,6 +407,14 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
             JOY_RIGHT.load(Ordering::Acquire),
         );
         mem.set_fire(JOY_FIRE.load(Ordering::Acquire));
+        // RESET button: أبقِ RESET مضغوطاً 10 إطارات
+        let cnt = RESET_FRAMES.load(Ordering::Acquire);
+        if cnt > 0 {
+            mem.set_reset(true);
+            RESET_FRAMES.store(cnt - 1, Ordering::Release);
+        } else {
+            mem.set_reset(false);
+        }
         logfox!(
             "A2600",
             "RIOT: timer={} prescaler={} presc_val={}",
