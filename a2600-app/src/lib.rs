@@ -39,7 +39,6 @@ static HEIGHT: AtomicI32 = AtomicI32::new(0);
 static FRAME_COUNT: AtomicU32 = AtomicU32::new(0);
 static INITIALIZED: AtomicBool = AtomicBool::new(false);
 static FRAME_LOCK: AtomicBool = AtomicBool::new(false);
-static TRACE_SHOWN: AtomicBool = AtomicBool::new(false);
 
 static mut GL_CTX_STORAGE: MaybeUninit<GlContext> = MaybeUninit::uninit();
 static GL_CTX: AtomicPtr<GlContext> = AtomicPtr::new(core::ptr::null_mut());
@@ -47,11 +46,11 @@ static GL_CTX: AtomicPtr<GlContext> = AtomicPtr::new(core::ptr::null_mut());
 static mut BATCH_STORAGE: MaybeUninit<BatchRenderer<400, 600>> = MaybeUninit::uninit();
 static BATCH: AtomicPtr<BatchRenderer<400, 600>> = AtomicPtr::new(core::ptr::null_mut());
 
-static JOY_UP: AtomicBool = AtomicBool::new(false);
-static JOY_DOWN: AtomicBool = AtomicBool::new(false);
-static JOY_LEFT: AtomicBool = AtomicBool::new(false);
-static JOY_RIGHT: AtomicBool = AtomicBool::new(false);
-static JOY_FIRE: AtomicBool = AtomicBool::new(false);
+static JOY_UP_HOLD: AtomicU32 = AtomicU32::new(0);
+static JOY_DOWN_HOLD: AtomicU32 = AtomicU32::new(0);
+static JOY_LEFT_HOLD: AtomicU32 = AtomicU32::new(0);
+static JOY_RIGHT_HOLD: AtomicU32 = AtomicU32::new(0);
+static JOY_FIRE_HOLD: AtomicU32 = AtomicU32::new(0);
 static RESET_FRAMES: AtomicU32 = AtomicU32::new(0);
 
 #[no_mangle]
@@ -60,7 +59,7 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnReset(
     _class: *mut c_void,
 ) {
     logfox!("A2600", "RESET pressed");
-    RESET_FRAMES.store(10, Ordering::Release);
+    RESET_FRAMES.store(30, Ordering::Release);
 }
 
 // --- Font atlas ---
@@ -248,11 +247,21 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnJoystick(
         fire
     );
 
-    JOY_UP.store(up != 0, Ordering::Release);
-    JOY_DOWN.store(down != 0, Ordering::Release);
-    JOY_LEFT.store(left != 0, Ordering::Release);
-    JOY_RIGHT.store(right != 0, Ordering::Release);
-    JOY_FIRE.store(fire != 0, Ordering::Release);
+    if up != 0 {
+        JOY_UP_HOLD.store(15, Ordering::Release);
+    }
+    if down != 0 {
+        JOY_DOWN_HOLD.store(15, Ordering::Release);
+    }
+    if left != 0 {
+        JOY_LEFT_HOLD.store(15, Ordering::Release);
+    }
+    if right != 0 {
+        JOY_RIGHT_HOLD.store(15, Ordering::Release);
+    }
+    if fire != 0 {
+        JOY_FIRE_HOLD.store(15, Ordering::Release);
+    }
 }
 
 #[no_mangle]
@@ -343,15 +352,46 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         // --- تطبيق المدخلات قبل تشغيل الإطار ---
         {
             let mem = &mut *MEM_STORAGE.as_mut_ptr();
-            mem.set_joystick(
-                JOY_UP.load(Ordering::Acquire),
-                JOY_DOWN.load(Ordering::Acquire),
-                JOY_LEFT.load(Ordering::Acquire),
-                JOY_RIGHT.load(Ordering::Acquire),
-            );
-            mem.set_fire(JOY_FIRE.load(Ordering::Acquire));
 
-            // ✅ يُظهر SWCHA فقط عندما يضغط اللاعب زراً
+            let mut up = false;
+            let mut down = false;
+            let mut left = false;
+            let mut right = false;
+            let mut fire = false;
+
+            let v = JOY_UP_HOLD.load(Ordering::Acquire);
+            if v > 0 {
+                up = true;
+                JOY_UP_HOLD.store(v - 1, Ordering::Release);
+            }
+
+            let v = JOY_DOWN_HOLD.load(Ordering::Acquire);
+            if v > 0 {
+                down = true;
+                JOY_DOWN_HOLD.store(v - 1, Ordering::Release);
+            }
+
+            let v = JOY_LEFT_HOLD.load(Ordering::Acquire);
+            if v > 0 {
+                left = true;
+                JOY_LEFT_HOLD.store(v - 1, Ordering::Release);
+            }
+
+            let v = JOY_RIGHT_HOLD.load(Ordering::Acquire);
+            if v > 0 {
+                right = true;
+                JOY_RIGHT_HOLD.store(v - 1, Ordering::Release);
+            }
+
+            let v = JOY_FIRE_HOLD.load(Ordering::Acquire);
+            if v > 0 {
+                fire = true;
+                JOY_FIRE_HOLD.store(v - 1, Ordering::Release);
+            }
+
+            mem.set_joystick(up, down, left, right);
+            mem.set_fire(fire);
+
             let swcha_val = mem.swcha;
             if swcha_val != 0xFF {
                 logfox!("A2600", "SWCHA set to 0x{:02X}", swcha_val);
@@ -438,12 +478,8 @@ pub extern "C" fn rust_eh_personality() {}
 
 #[cfg(not(test))]
 #[panic_handler]
-fn panic(info: &core::panic::PanicInfo) -> ! {
-    if info.location().is_some() {
-        za_sys::android_log(za_sys::LogLevel::Error, "ZAVOGLES", "PANIC!");
-    } else {
-        za_sys::android_log(za_sys::LogLevel::Error, "ZAVOGLES", "PANIC!");
-    }
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    za_sys::android_log(za_sys::LogLevel::Error, "ZAVOGLES", "PANIC!");
     loop {}
 }
 
