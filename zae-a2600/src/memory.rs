@@ -15,7 +15,6 @@ pub struct Memory {
     pub riot_prescaler_value: u32,
     pub swcha: u8,
     pub swchb: u8,
-    pub tim64t_writes: u32,
 }
 
 impl Memory {
@@ -29,8 +28,7 @@ impl Memory {
             riot_prescaler: 1,
             riot_prescaler_value: 1,
             swcha: 0xFF,
-            swchb: 0x07,
-            tim64t_writes: 0,
+            swchb: 0x0F, // ✅ البت 3 = 1 → وضع الألوان
         }
     }
 
@@ -71,7 +69,6 @@ impl Memory {
                 self.riot_timer = value;
                 self.riot_prescaler_value = 64;
                 self.riot_prescaler = 64;
-                self.tim64t_writes += 1;
             }
             0x17 => {
                 self.riot_timer = value;
@@ -92,7 +89,6 @@ impl Memory {
             }
             if self.riot_prescaler == 0 {
                 self.riot_prescaler = self.riot_prescaler_value;
-                // المؤقت يتوقف عند 0 ولا يلف (كما في عتاد 6532 الحقيقي)
                 if self.riot_timer > 0 {
                     self.riot_timer -= 1;
                 }
@@ -100,20 +96,21 @@ impl Memory {
         }
     }
 
+    /// ✅ تصحيح: يستخدم البتات 4-7 (Player 0)، وليس 0-3 (Player 1)
     pub fn set_joystick(&mut self, up: bool, down: bool, left: bool, right: bool) {
         let mut s = 0xFFu8;
         if up {
-            s &= !0x01;
-        }
+            s &= !0x10;
+        } // bit 4
         if down {
-            s &= !0x02;
-        }
+            s &= !0x20;
+        } // bit 5
         if left {
-            s &= !0x04;
-        }
+            s &= !0x40;
+        } // bit 6
         if right {
-            s &= !0x08;
-        }
+            s &= !0x80;
+        } // bit 7
         self.swcha = s;
     }
 
