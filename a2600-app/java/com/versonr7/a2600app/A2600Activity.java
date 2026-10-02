@@ -86,56 +86,55 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
     // ============ PS4 Controller Support ============
 
     @Override
-public boolean dispatchKeyEvent(KeyEvent event) {
-    int code = event.getKeyCode();
-    int action = event.getAction();
-    Log.i(TAG, "dispatchKeyEvent: code=" + code + " action=" + action);
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        int code = event.getKeyCode();
+        int action = event.getAction();
+        Log.i(TAG, "dispatchKeyEvent: code=" + code + " action=" + action);
 
-    boolean down = (action == KeyEvent.ACTION_DOWN);
-    boolean up = (action == KeyEvent.ACTION_UP);
+        boolean down = (action == KeyEvent.ACTION_DOWN);
+        boolean up = (action == KeyEvent.ACTION_UP);
 
-    switch (code) {
-        case KeyEvent.KEYCODE_DPAD_UP:
-            if (down) nativeOnJoystick(1, 0, 0, 0, 0);
-            else if (up) nativeOnJoystick(0, 0, 0, 0, 0);
-            return true;
-        case KeyEvent.KEYCODE_DPAD_DOWN:
-            if (down) nativeOnJoystick(0, 1, 0, 0, 0);
-            else if (up) nativeOnJoystick(0, 0, 0, 0, 0);
-            return true;
-        case KeyEvent.KEYCODE_DPAD_LEFT:
-            if (down) nativeOnJoystick(0, 0, 1, 0, 0);
-            else if (up) nativeOnJoystick(0, 0, 0, 0, 0);
-            return true;
-        case KeyEvent.KEYCODE_DPAD_RIGHT:
-            if (down) nativeOnJoystick(0, 0, 0, 1, 0);
-            else if (up) nativeOnJoystick(0, 0, 0, 0, 0);
-            return true;
+        switch (code) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+                if (down) nativeOnJoystick(1, 0, 0, 0, 0);
+                else if (up) nativeOnJoystick(0, 0, 0, 0, 0);
+                return true;
+            case KeyEvent.KEYCODE_DPAD_DOWN:
+                if (down) nativeOnJoystick(0, 1, 0, 0, 0);
+                else if (up) nativeOnJoystick(0, 0, 0, 0, 0);
+                return true;
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+                if (down) nativeOnJoystick(0, 0, 1, 0, 0);
+                else if (up) nativeOnJoystick(0, 0, 0, 0, 0);
+                return true;
+            case KeyEvent.KEYCODE_DPAD_RIGHT:
+                if (down) nativeOnJoystick(0, 0, 0, 1, 0);
+                else if (up) nativeOnJoystick(0, 0, 0, 0, 0);
+                return true;
 
-        case KeyEvent.KEYCODE_BUTTON_A:
-        case KeyEvent.KEYCODE_BUTTON_X:
-        case KeyEvent.KEYCODE_BUTTON_Y:
-        case KeyEvent.KEYCODE_BUTTON_B:
-        case KeyEvent.KEYCODE_BUTTON_R1:
-        case KeyEvent.KEYCODE_BUTTON_L1:
-            if (down) nativeOnJoystick(0, 0, 0, 0, 1);
-            else if (up) nativeOnJoystick(0, 0, 0, 0, 0);
-            return true;
+            case KeyEvent.KEYCODE_BUTTON_A:
+            case KeyEvent.KEYCODE_BUTTON_X:
+            case KeyEvent.KEYCODE_BUTTON_Y:
+            case KeyEvent.KEYCODE_BUTTON_B:
+            case KeyEvent.KEYCODE_BUTTON_R1:
+            case KeyEvent.KEYCODE_BUTTON_L1:
+                if (down) nativeOnJoystick(0, 0, 0, 0, 1);
+                else if (up) nativeOnJoystick(0, 0, 0, 0, 0);
+                return true;
 
-        case KeyEvent.KEYCODE_BUTTON_START:
-        case KeyEvent.KEYCODE_BUTTON_SELECT:
-            if (down) {
-                nativeOnJoystick(0, 0, 0, 0, 0);
-                nativeOnReset();
-            }
-            return true;
+            case KeyEvent.KEYCODE_BUTTON_START:
+            case KeyEvent.KEYCODE_BUTTON_SELECT:
+                if (down) {
+                    nativeOnJoystick(0, 0, 0, 0, 0);
+                    nativeOnReset();
+                }
+                return true;
+        }
+        return super.dispatchKeyEvent(event);
     }
-    return super.dispatchKeyEvent(event);
-}
 
     @Override
     public boolean onGenericMotionEvent(MotionEvent event) {
-        // Analog Stick من PS4 controller
         if ((event.getSource() & android.view.InputDevice.SOURCE_JOYSTICK)
                 == android.view.InputDevice.SOURCE_JOYSTICK) {
             float x = event.getAxisValue(MotionEvent.AXIS_X);
@@ -143,7 +142,6 @@ public boolean dispatchKeyEvent(KeyEvent event) {
 
             Log.i(TAG, "Analog: x=" + x + " y=" + y);
 
-            // Dead zone
             if (Math.abs(x) < 0.3f && Math.abs(y) < 0.3f) {
                 nativeOnJoystick(0, 0, 0, 0, 0);
                 return true;
@@ -162,47 +160,47 @@ public boolean dispatchKeyEvent(KeyEvent event) {
     // ============ Touch Support ============
 
     @Override
-public boolean onTouchEvent(MotionEvent event) {
-    float x = event.getX();
-    float y = event.getY();
-    int w = surfaceView.getWidth();
-    int h = surfaceView.getHeight();
+    public boolean onTouchEvent(MotionEvent event) {
+        float x = event.getX();
+        float y = event.getY();
+        int w = surfaceView.getWidth();
+        int h = surfaceView.getHeight();
 
-    boolean up = false, down = false, left = false, right = false, fire = false;
-    boolean resetTrigger = false;
+        boolean up = false, down = false, left = false, right = false, fire = false;
+        boolean resetTrigger = false;
 
-    int action = event.getActionMasked();
-    if (action == MotionEvent.ACTION_DOWN) {
-        float xr = x / w;
-        float yr = y / h;
+        int action = event.getActionMasked();
 
-        // منطقة زر RESET في أعلى اليمين
-        if (yr < 0.15f && xr > 0.85f) {
-            resetTrigger = true;
+        if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE) {
+            float xr = x / w;
+            float yr = y / h;
+
+            // منطقة RESET (أعلى يمين)
+            if (yr < 0.2f && xr > 0.8f) {
+                resetTrigger = true;
+            }
+            // النصف الأيسر السفلي = Joystick
+            else if (yr > 0.5f && xr < 0.5f) {
+                if (yr < 0.7f) up = true;
+                else if (yr > 0.9f) down = true;
+                else if (xr < 0.25f) left = true;
+                else right = true;
+            }
+            // النصف الأيمن السفلي = Fire
+            else if (yr > 0.5f && xr >= 0.5f) {
+                fire = true;
+            }
         }
-        // الباقي كما كان
-        else if (yr > 0.6f && xr < 0.5f) {
-            if (yr < 0.75f) up = true;
-            else if (yr > 0.9f) down = true;
-            else if (xr < 0.25f) left = true;
-            else right = true;
-        }
-        else if (yr > 0.6f && xr >= 0.5f) {
-            fire = true;
-        }
+
+        Log.i(TAG, "Touch: xr=" + (x/w) + " yr=" + (y/h)
+            + " → U" + (up?1:0) + " D" + (down?1:0)
+            + " L" + (left?1:0) + " R" + (right?1:0)
+            + " F" + (fire?1:0) + " RST" + (resetTrigger?1:0));
+
+        if (resetTrigger) nativeOnReset();
+        nativeOnJoystick(up?1:0, down?1:0, left?1:0, right?1:0, fire?1:0);
+        return true;
     }
-
-    Log.i(TAG, "Touch: xr=" + (x/w) + " yr=" + (y/h)
-        + " → U" + (up?1:0) + " D" + (down?1:0)
-        + " L" + (left?1:0) + " R" + (right?1:0)
-        + " F" + (fire?1:0) + " RST" + (resetTrigger?1:0));
-
-    if (resetTrigger) {
-        nativeOnReset();
-    }
-    nativeOnJoystick(up?1:0, down?1:0, left?1:0, right?1:0, fire?1:0);
-    return true;
-}
 
     // ============ SurfaceHolder.Callback ============
 

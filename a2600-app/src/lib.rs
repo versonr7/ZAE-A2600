@@ -52,7 +52,6 @@ static JOY_DOWN: AtomicBool = AtomicBool::new(false);
 static JOY_LEFT: AtomicBool = AtomicBool::new(false);
 static JOY_RIGHT: AtomicBool = AtomicBool::new(false);
 static JOY_FIRE: AtomicBool = AtomicBool::new(false);
-static JOY_RESET: AtomicBool = AtomicBool::new(false);
 static RESET_FRAMES: AtomicU32 = AtomicU32::new(0);
 
 #[no_mangle]
@@ -63,6 +62,7 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnReset(
     logfox!("A2600", "RESET pressed");
     RESET_FRAMES.store(10, Ordering::Release);
 }
+
 // --- Font atlas ---
 static FONT_ATLAS_BYTES: &[u8] = include_bytes!("../../assets/font_atlas.rgba");
 const FONT_ATLAS_W: i32 = 512;
@@ -75,6 +75,7 @@ static SCREEN_TEX: AtomicPtr<Texture> = AtomicPtr::new(core::ptr::null_mut());
 static mut MEM_STORAGE: MaybeUninit<Memory> = MaybeUninit::uninit();
 static mut CPU_STORAGE: MaybeUninit<Cpu> = MaybeUninit::uninit();
 static EMU_INITIALIZED: AtomicBool = AtomicBool::new(false);
+
 // ===== JNI EXPORTS =====
 #[no_mangle]
 pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnRenderThreadExit(
@@ -82,31 +83,26 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnRenderThreadE
     _class: *mut c_void,
 ) {
     unsafe {
-        // تأكد أن السياق الحالي ساري قبل حذف الموارد
         let ctx_ptr = GL_CTX.load(Ordering::Acquire);
         if !ctx_ptr.is_null() {
             let _ = (*ctx_ptr).make_current();
         }
 
-        // احذف الخط أولاً (يستخدم Textures)
         if !FONT.load(Ordering::Relaxed).is_null() {
             core::ptr::drop_in_place(FONT_STORAGE.as_mut_ptr());
             FONT.store(core::ptr::null_mut(), Ordering::Release);
         }
 
-        // احذف شاشة العرض
         if !SCREEN_TEX.load(Ordering::Relaxed).is_null() {
             core::ptr::drop_in_place(SCREEN_TEX_STORAGE.as_mut_ptr());
             SCREEN_TEX.store(core::ptr::null_mut(), Ordering::Release);
         }
 
-        // ثم احذف BatchRenderer
         if !BATCH.load(Ordering::Relaxed).is_null() {
             core::ptr::drop_in_place(BATCH_STORAGE.as_mut_ptr());
             BATCH.store(core::ptr::null_mut(), Ordering::Release);
         }
 
-        // أخيرًا احذف سياق GL
         if !GL_CTX.load(Ordering::Relaxed).is_null() {
             core::ptr::drop_in_place(GL_CTX_STORAGE.as_mut_ptr());
             GL_CTX.store(core::ptr::null_mut(), Ordering::Release);
@@ -143,7 +139,6 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnSurfaceCreate
             let w = win.width();
             let h = win.height();
 
-            // ✅ إصلاح تسريب السياق: إذا كان فيه سياق قديم، امسحه وأبطل المؤشرات القديمة
             let old_ctx = GL_CTX.load(Ordering::Acquire);
             if !old_ctx.is_null() {
                 core::ptr::drop_in_place(old_ctx);
@@ -229,8 +224,6 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnTouch(
     action: i32,
 ) {
     if action == 0 {
-        let w = WIDTH.load(Ordering::Acquire) as f32;
-
         logfox!("ZAVOGLES", "Touch received");
     }
 }
@@ -279,13 +272,6 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         return;
     }
 
-    logfox!(
-        "A2600",
-        "EMU_INITIALIZED={}",
-        EMU_INITIALIZED.load(Ordering::Acquire)
-    );
-    logfox!("A2600", "nativeOnFrame entered");
-
     unsafe {
         let ctx_ptr = GL_CTX.load(Ordering::Acquire);
         if ctx_ptr.is_null() {
@@ -308,7 +294,7 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
                 Ok(batch) => {
                     BATCH_STORAGE.write(batch);
                     BATCH.store(BATCH_STORAGE.as_mut_ptr(), Ordering::Release);
-                    logfox!("A2600", "BatchRenderer created on render thread");
+                    logfox!("A2600", "BatchRenderer created");
                 }
                 Err(e) => {
                     logfox!("A2600", "ERROR: BatchRenderer failed: {}", e);
@@ -317,7 +303,6 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
                 }
             }
 
-            // ✅ انقل كتلة Texture::new() هنا، داخل if batch_ptr.is_null()
             match Texture::new() {
                 Ok(tex) => {
                     SCREEN_TEX_STORAGE.write(tex);
@@ -335,19 +320,12 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
 
         ctx.update_viewport(w as i32, h as i32);
         ctx.clear();
-        logfox!("A2600", "after clear");
 
         // --- تهيئة المحاكي مرة واحدة ---
         if !EMU_INITIALIZED.load(Ordering::Acquire) {
             let mut mem = Memory::new();
             let rom = include_bytes!("../../roms/adventure.bin");
             logfox!("A2600", "ROM size: {}", rom.len());
-            logfox!(
-                "A2600",
-                "rom[0]=0x{:02X}, rom[0xFFF]=0x{:02X}",
-                rom[0],
-                rom[rom.len() - 1]
-            );
             mem.load_rom(rom);
             MEM_STORAGE.write(mem);
 
@@ -357,109 +335,82 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
             let pc_after_reset = cpu.pc;
             CPU_STORAGE.write(cpu);
 
-            // 🔬 تتبع أول 100 تعليمة (مرة واحدة فقط)
-            if !TRACE_SHOWN.load(Ordering::Acquire) {
-                let mem_ref = &mut *MEM_STORAGE.as_mut_ptr();
-                let cpu_ref = &mut *CPU_STORAGE.as_mut_ptr();
-                let pc_start = cpu_ref.pc;
-                logfox!("A2600", "=== TRACE START (PC=0x{:04X}) ===", pc_start);
-                for i in 0..500 {
-                    let pc_before = cpu_ref.pc;
-                    let opcode = mem_ref.read(pc_before);
-                    logfox!(
-                        "A2600",
-                        "trace[{}]: PC=0x{:04X} OP=0x{:02X}",
-                        i,
-                        pc_before,
-                        opcode
-                    );
-                    cpu_ref.step(mem_ref);
-                }
-                logfox!("A2600", "=== TRACE END ===");
-                logfox!("A2600", "State: A=0x{:02X} X=0x{:02X} Y=0x{:02X} SP=0x{:02X} PC=0x{:04X} status=0x{:02X}",
-        cpu_ref.a, cpu_ref.x, cpu_ref.y, cpu_ref.sp, cpu_ref.pc, cpu_ref.status);
-                cpu_ref.reset(mem_ref);
-                TRACE_SHOWN.store(true, Ordering::Release);
-                logfox!("A2600", "trace complete, CPU reset");
+            logfox!("A2600", "PC after reset: 0x{:04X}", pc_after_reset);
+            logfox!("A2600", "Atari 2600 initialized");
+            EMU_INITIALIZED.store(true, Ordering::Release);
+        }
+
+        // --- تطبيق المدخلات قبل تشغيل الإطار ---
+        {
+            let mem = &mut *MEM_STORAGE.as_mut_ptr();
+            mem.set_joystick(
+                JOY_UP.load(Ordering::Acquire),
+                JOY_DOWN.load(Ordering::Acquire),
+                JOY_LEFT.load(Ordering::Acquire),
+                JOY_RIGHT.load(Ordering::Acquire),
+            );
+            mem.set_fire(JOY_FIRE.load(Ordering::Acquire));
+
+            // ✅ يُظهر SWCHA فقط عندما يضغط اللاعب زراً
+            let swcha_val = mem.swcha;
+            if swcha_val != 0xFF {
+                logfox!("A2600", "SWCHA set to 0x{:02X}", swcha_val);
             }
 
-            let mem_ref = &*MEM_STORAGE.as_ptr();
-            logfox!(
-                "A2600",
-                "PC after reset: 0x{:04X} (lo={}, hi={})",
-                pc_after_reset,
-                mem_ref.read(0xFFFC),
-                mem_ref.read(0xFFFD)
-            );
-            logfox!("A2600", "Atari 2600 emulator initialized");
-            EMU_INITIALIZED.store(true, Ordering::Release);
+            // RESET: أبقِ RESET مضغوطاً لعدة إطارات
+            let cnt = RESET_FRAMES.load(Ordering::Acquire);
+            if cnt > 0 {
+                mem.set_reset(true);
+                RESET_FRAMES.store(cnt - 1, Ordering::Release);
+            } else {
+                mem.set_reset(false);
+            }
         }
 
         // --- تشغيل إطار واحد ---
         let mem = &mut *MEM_STORAGE.as_mut_ptr();
         let cpu = &mut *CPU_STORAGE.as_mut_ptr();
         cpu.run_frame(mem);
-        // طبّق المدخلات الحالية على الذاكرة (على خيط الرسم)
-        mem.set_joystick(
-            JOY_UP.load(Ordering::Acquire),
-            JOY_DOWN.load(Ordering::Acquire),
-            JOY_LEFT.load(Ordering::Acquire),
-            JOY_RIGHT.load(Ordering::Acquire),
-        );
-        mem.set_fire(JOY_FIRE.load(Ordering::Acquire));
-        // RESET button: أبقِ RESET مضغوطاً 10 إطارات
-        let cnt = RESET_FRAMES.load(Ordering::Acquire);
-        if cnt > 0 {
-            mem.set_reset(true);
-            RESET_FRAMES.store(cnt - 1, Ordering::Release);
-        } else {
-            mem.set_reset(false);
-        }
+
+        // ===== Logs التشخيصية =====
         logfox!(
             "A2600",
-            "RIOT: timer={} prescaler={} presc_val={}",
-            mem.riot_timer,
-            mem.riot_prescaler,
-            mem.riot_prescaler_value
-        );
-        logfox!(
-            "A2600",
-            "Regs: swcha=0x{:02X} swchb=0x{:02X} int=0x{:02X} p0=0x{:02X} p1=0x{:02X}",
-            mem.swcha,
-            mem.swchb,
-            mem.tia.inpt4,
-            mem.tia.grp0,
-            mem.tia.grp1
-        );
-        logfox!(
-            "A2600",
-            "TIA: colubk={}, colupf={}, ctrlpf={}, pf0={}, pf1={}, pf2={}",
+            "TIA: bg={} pf={} pf0={:02X} pf1={:02X} pf2={:02X}",
             mem.tia.colubk,
             mem.tia.colupf,
-            mem.tia.ctrlpf,
             mem.tia.pf0,
             mem.tia.pf1,
             mem.tia.pf2
         );
         logfox!(
             "A2600",
-            "after run_frame, pc={}, cycles={}",
-            cpu.pc,
-            cpu.cycles
+            "Regs: swcha=0x{:02X} swchb=0x{:02X}",
+            mem.swcha,
+            mem.swchb
         );
+        logfox!(
+            "A2600",
+            "P0: grp={:02X} hpos={}",
+            mem.tia.grp0,
+            mem.tia.hpos_p0
+        );
+        logfox!(
+            "A2600",
+            "P1: grp={:02X} hpos={}",
+            mem.tia.grp1,
+            mem.tia.hpos_p1
+        );
+        logfox!("A2600", "pc={} cycles={}", cpu.pc, cpu.cycles);
 
         // --- رسم إطار المحاكي من TIA ---
         let tex_ptr = SCREEN_TEX.load(Ordering::Acquire);
         if !tex_ptr.is_null() {
             let tex = &*tex_ptr;
-            match tex.upload_rgba(
+            let _ = tex.upload_rgba(
                 zae_a2600::tia::FB_WIDTH as i32,
                 zae_a2600::tia::FB_HEIGHT as i32,
                 &mem.tia.framebuffer,
-            ) {
-                Ok(_) => logfox!("A2600", "Framebuffer uploaded OK"),
-                Err(e) => logfox!("A2600", "Framebuffer upload FAILED: {}", e),
-            }
+            );
             batch.begin_frame();
             batch.set_texture(tex);
             batch.draw_quad(
@@ -469,11 +420,6 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
             );
             batch.end_frame(&Mat4::ortho(0.0, w, h, 0.0, -1.0, 1.0), 0.0, 0.0, 0.0);
         }
-
-        logfox!("A2600", "after draw background");
-        // افحص لون أول بكسل
-        let fb = &mem.tia.framebuffer;
-        logfox!("A2600", "FB[0..4]={},{},{},{}", fb[0], fb[1], fb[2], fb[3]);
 
         if RUNNING.load(Ordering::Acquire) {
             if let Err(e) = ctx.swap_buffers() {
@@ -494,15 +440,10 @@ pub extern "C" fn rust_eh_personality() {}
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     if info.location().is_some() {
-        za_sys::android_log(
-            za_sys::LogLevel::Error,
-            "ZAVOGLES",
-            "PANIC! (see logcat for details)",
-        );
+        za_sys::android_log(za_sys::LogLevel::Error, "ZAVOGLES", "PANIC!");
     } else {
         za_sys::android_log(za_sys::LogLevel::Error, "ZAVOGLES", "PANIC!");
     }
-    // ✅ إصلاح Claude: إنهاء فوري بدل حلقة لا نهائية
     loop {}
 }
 
