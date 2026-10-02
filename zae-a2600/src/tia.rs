@@ -290,7 +290,13 @@ impl Tia {
             0x20 | 0x21 | 0x22 | 0x23 | 0x24 => {
                 let nibble = (value >> 4) & 0x0F;
                 // 1-7 → تحرك يميناً، 8 → لا حركة، 9-15 → تحرك يساراً
-                self.hmove_pending = 8 - (nibble as i8);
+                self.hmove_pending = if nibble < 8 {
+                    nibble as i8
+                } else if nibble == 8 {
+                    0
+                } else {
+                    nibble as i8 - 16
+                };
             }
             0x2A => {
                 let d = self.hmove_pending as i16;
@@ -350,7 +356,7 @@ impl Tia {
     }
 
     fn get_color(&self, value: u8) -> (u8, u8, u8) {
-        let hue = (value >> 4) & 0x07;
+        let hue = (value >> 4) & 0x0F; // ✅ 4 بتات، ليس 3
         let lum = (value >> 1) & 0x07;
         NTSC_PALETTE[(hue as usize) * 8 + (lum as usize)]
     }

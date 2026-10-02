@@ -9,5 +9,3 @@ license = "GPL-3.0-only"
 [lib]
 name = "za_disasm"
 crate-type = ["lib"]
-
-[dependencies]
