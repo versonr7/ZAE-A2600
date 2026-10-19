@@ -179,7 +179,14 @@ pub struct Tia {
     pub cycle_in_scanline: u32,
     pub wsync: bool,
     pub framebuffer: [u8; FB_SIZE],
-
+    pub cxm0p: u8,
+    pub cxm1p: u8,
+    pub cxp0fb: u8,
+    pub cxp1fb: u8,
+    pub cxm0fb: u8,
+    pub cxm1fb: u8,
+    pub cxblpf: u8,
+    pub cxppmm: u8,
     // Sprites
     pub colup0: u8,
     pub colup1: u8,
@@ -234,35 +241,53 @@ impl Tia {
             refp1: false,
             hmove_pending: 0,
             inpt4: 0x80,
+          cxm0p: 0,
+cxm1p: 0,
+cxp0fb: 0,
+cxp1fb: 0,
+cxm0fb: 0,
+cxm1fb: 0,
+cxblpf: 0,
+cxppmm: 0,
         }
     }
 
     pub fn read_register(&self, addr: u16) -> u8 {
-        match addr {
-            TIA_VBLANK => {
-                if self.vblank {
-                    0x80
-                } else {
-                    0x00
-                }
-            }
-            TIA_COLUBK => self.colubk,
-            0x3C => self.inpt4, // INPT4 - زر Fire للاعب 0
-            0x3D => 0x80,       // INPT5 - غير مضغوط
-            _ => 0,
+    // ملاحظة: بعض العناوين تحتاج `&mut self` لأن القراءة تُصفّر السجل
+    // سنستخدم التصفير في دالة منفصلة
+    match addr {
+        TIA_VBLANK => {
+            if self.vblank { 0x80 } else { 0x00 }
         }
+        TIA_COLUBK => self.colubk,
+        0x30 => self.cxm0p,
+        0x31 => self.cxm1p,
+        0x32 => self.cxp0fb,
+        0x33 => self.cxp1fb,
+        0x34 => self.cxm0fb,
+        0x35 => self.cxm1fb,
+        0x36 => self.cxblpf,
+        0x37 => self.cxppmm,
+        0x3C => self.inpt4,
+        0x3D => 0x80,
+        _ => 0,
     }
+}
 
-    pub fn write_register(&mut self, addr: u16, value: u8) {
-        match addr {
-            0x00 => {
-                let was = self.vsync;
-                self.vsync = value & 0x02 != 0;
-                if self.vsync && !was {
-                    self.scanline = 0;
-                    self.cycle_in_scanline = 0;
-                }
-            }
+/// يُستدعى بعد قراءة سجل تصادم لتصفيره
+pub fn clear_collision(&mut self, addr: u16) {
+    match addr {
+        0x30 => self.cxm0p = 0,
+        0x31 => self.cxm1p = 0,
+        0x32 => self.cxp0fb = 0,
+        0x33 => self.cxp1fb = 0,
+        0x34 => self.cxm0fb = 0,
+        0x35 => self.cxm1fb = 0,
+        0x36 => self.cxblpf = 0,
+        0x37 => self.cxppmm = 0,
+        _ => {}
+    }
+}
             0x01 => self.vblank = value & 0x02 != 0,
             0x02 => self.wsync = true,
             0x04 => self.nusiz0 = value,
@@ -362,81 +387,128 @@ impl Tia {
     }
 
     fn render_scanline(&mut self, row: usize) {
-        let (br, bg, bb) = self.get_color(self.colubk);
-        let (pr, pg, pb) = self.get_color(self.colupf);
-        let (p0r, p0g, p0b) = self.get_color(self.colup0);
-        let (p1r, p1g, p1b) = self.get_color(self.colup1);
+    let (br, bg, bb) = self.get_color(self.colubk);
+    let (pr, pg, pb) = self.get_color(self.colupf);
+    let (p0r, p0g, p0b) = self.get_color(self.colup0);
+    let (p1r, p1g, p1b) = self.get_color(self.colup1);
 
-        let base = row * FB_WIDTH * 4;
+    let base = row * FB_WIDTH * 4;
 
-        for x in 0..FB_WIDTH {
-            let mut r = br;
-            let mut g = bg;
-            let mut b = bb;
+    // ===== Collision Detection flags =====
+    let mut col_p0_p1 = false;
+    let mut col_p0_pf = false;
+    let mut col_p0_bl = false;
+    let mut col_p0_m0 = false;
+    let mut col_p0_m1 = false;
+    let mut col_p1_pf = false;
+    let mut col_p1_bl = false;
+    let mut col_p1_m0 = false;
+    let mut col_p1_m1 = false;
+    let mut col_m0_p1 = false;
+    let mut col_m1_p1 = false;
+    let mut col_m0_m1 = false;
+    let mut col_bl_pf = false;
 
-            if self.playfield_bit(x as u32) {
-                r = pr;
-                g = pg;
-                b = pb;
-            }
+    for x in 0..FB_WIDTH {
+        let mut r = br;
+        let mut g = bg;
+        let mut b = bb;
 
-            if self.grp0 != 0 {
-                let dx = x as i32 - self.hpos_p0 as i32;
-                if (0..8).contains(&dx) {
-                    let bit = if self.refp0 { dx } else { 7 - dx };
-                    if (self.grp0 >> bit) & 1 != 0 {
-                        r = p0r;
-                        g = p0g;
-                        b = p0b;
-                    }
-                }
-            }
-
-            if self.grp1 != 0 {
-                let dx = x as i32 - self.hpos_p1 as i32;
-                if (0..8).contains(&dx) {
-                    let bit = if self.refp1 { dx } else { 7 - dx };
-                    if (self.grp1 >> bit) & 1 != 0 {
-                        r = p1r;
-                        g = p1g;
-                        b = p1b;
-                    }
-                }
-            }
-
-            if self.enabl {
-                let dx = x as i32 - self.hpos_bl as i32;
-                if (0..2).contains(&dx) {
-                    r = pr;
-                    g = pg;
-                    b = pb;
-                }
-            }
-
-            if self.enam0 {
-                let dx = x as i32 - self.hpos_m0 as i32;
-                if (0..2).contains(&dx) {
-                    r = p0r;
-                    g = p0g;
-                    b = p0b;
-                }
-            }
-
-            if self.enam1 {
-                let dx = x as i32 - self.hpos_m1 as i32;
-                if (0..2).contains(&dx) {
-                    r = p1r;
-                    g = p1g;
-                    b = p1b;
-                }
-            }
-
-            let idx = base + x * 4;
-            self.framebuffer[idx] = r;
-            self.framebuffer[idx + 1] = g;
-            self.framebuffer[idx + 2] = b;
-            self.framebuffer[idx + 3] = 255;
+        let is_pf = self.playfield_bit(x as u32);
+        if is_pf {
+            r = pr; g = pg; b = pb;
         }
+
+        let mut is_p0 = false;
+        if self.grp0 != 0 {
+            let dx = x as i32 - self.hpos_p0 as i32;
+            if (0..8).contains(&dx) {
+                let bit = if self.refp0 { dx } else { 7 - dx };
+                if (self.grp0 >> bit) & 1 != 0 {
+                    r = p0r; g = p0g; b = p0b;
+                    is_p0 = true;
+                }
+            }
+        }
+
+        let mut is_p1 = false;
+        if self.grp1 != 0 {
+            let dx = x as i32 - self.hpos_p1 as i32;
+            if (0..8).contains(&dx) {
+                let bit = if self.refp1 { dx } else { 7 - dx };
+                if (self.grp1 >> bit) & 1 != 0 {
+                    r = p1r; g = p1g; b = p1b;
+                    is_p1 = true;
+                }
+            }
+        }
+
+        let mut is_bl = false;
+        if self.enabl {
+            let dx = x as i32 - self.hpos_bl as i32;
+            if (0..2).contains(&dx) {
+                r = pr; g = pg; b = pb;
+                is_bl = true;
+            }
+        }
+
+        let mut is_m0 = false;
+        if self.enam0 {
+            let dx = x as i32 - self.hpos_m0 as i32;
+            if (0..2).contains(&dx) {
+                r = p0r; g = p0g; b = p0b;
+                is_m0 = true;
+            }
+        }
+
+        let mut is_m1 = false;
+        if self.enam1 {
+            let dx = x as i32 - self.hpos_m1 as i32;
+            if (0..2).contains(&dx) {
+                r = p1r; g = p1g; b = p1b;
+                is_m1 = true;
+            }
+        }
+
+        // ===== فحوصات التصادم =====
+        if is_p0 && is_p1 { col_p0_p1 = true; }
+        if is_p0 && is_pf { col_p0_pf = true; }
+        if is_p0 && is_bl { col_p0_bl = true; }
+        if is_p0 && is_m0 { col_p0_m0 = true; }
+        if is_p0 && is_m1 { col_p0_m1 = true; }
+        if is_p1 && is_pf { col_p1_pf = true; }
+        if is_p1 && is_bl { col_p1_bl = true; }
+        if is_p1 && is_m0 { col_p1_m0 = true; }
+        if is_p1 && is_m1 { col_p1_m1 = true; }
+        if is_m0 && is_p1 { col_m0_p1 = true; }
+        if is_m1 && is_p1 { col_m1_p1 = true; }
+        if is_m0 && is_m1 { col_m0_m1 = true; }
+        if is_bl && is_pf { col_bl_pf = true; }
+
+        let idx = base + x * 4;
+        self.framebuffer[idx] = r;
+        self.framebuffer[idx + 1] = g;
+        self.framebuffer[idx + 2] = b;
+        self.framebuffer[idx + 3] = 255;
+    }
+
+    // ===== تحديث سجلات التصادم (sticky) =====
+    if col_p0_p1 { self.cxppmm |= 0x80; }
+    if col_m0_m1 { self.cxppmm |= 0x40; }
+
+    if col_m0_p1 { self.cxm0p |= 0x80; }
+    if col_m0_p0 { self.cxm0p |= 0x40; }
+
+    if col_m1_p1 { self.cxm1p |= 0x80; }
+    if col_m1_p0 { self.cxm1p |= 0x40; }
+
+    if col_p0_pf { self.cxp0fb |= 0x80; }
+    if col_p0_bl { self.cxp0fb |= 0x40; }
+
+    if col_p1_pf { self.cxp1fb |= 0x80; }
+    if col_p1_bl { self.cxp1fb |= 0x40; }
+
+    if col_bl_pf { self.cxblpf |= 0x80; }
     }
 
     pub fn background_color(&self) -> Color {
