@@ -247,11 +247,20 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnJoystick(
         fire
     );
 
-    if up != 0    { JOY_UP_HOLD.store(8, Ordering::Release); }
-if down != 0  { JOY_DOWN_HOLD.store(8, Ordering::Release); }
-if left != 0  { JOY_LEFT_HOLD.store(8, Ordering::Release); }
-if right != 0 { JOY_RIGHT_HOLD.store(8, Ordering::Release); }
-if fire != 0  { JOY_FIRE_HOLD.store(8, Ordering::Release); }
+    if up != 0 {
+        JOY_UP_HOLD.store(8, Ordering::Release);
+    }
+    if down != 0 {
+        JOY_DOWN_HOLD.store(8, Ordering::Release);
+    }
+    if left != 0 {
+        JOY_LEFT_HOLD.store(8, Ordering::Release);
+    }
+    if right != 0 {
+        JOY_RIGHT_HOLD.store(8, Ordering::Release);
+    }
+    if fire != 0 {
+        JOY_FIRE_HOLD.store(8, Ordering::Release);
     }
 }
 

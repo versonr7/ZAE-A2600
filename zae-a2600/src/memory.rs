@@ -135,21 +135,21 @@ impl Memory {
     }
 
     pub fn read(&mut self, addr: u16) -> u8 {
-    let a = addr & 0x1FFF;
-    match a {
-        0x0000..=0x007F => {
-            let v = self.tia.read_register(a & 0x3F);
-            if a >= 0x30 && a <= 0x37 {
-                self.tia.clear_collision(a & 0x3F);
+        let a = addr & 0x1FFF;
+        match a {
+            0x0000..=0x007F => {
+                let v = self.tia.read_register(a & 0x3F);
+                if a >= 0x30 && a <= 0x37 {
+                    self.tia.clear_collision(a & 0x3F);
+                }
+                v
             }
-            v
+            0x0080..=0x00FF => self.ram[(a & 0x7F) as usize],
+            0x0180..=0x01FF => self.ram[(a & 0x7F) as usize],
+            0x0280..=0x02FF => self.riot_read(a),
+            0x1000..=0x1FFF => self.rom[(a & 0x0FFF) as usize],
+            _ => 0,
         }
-        0x0080..=0x00FF => self.ram[(a & 0x7F) as usize],
-        0x0180..=0x01FF => self.ram[(a & 0x7F) as usize],
-        0x0280..=0x02FF => self.riot_read(a),
-        0x1000..=0x1FFF => self.rom[(a & 0x0FFF) as usize],
-        _ => 0,
-    }
     }
 
     pub fn write(&mut self, addr: u16, value: u8) {
