@@ -393,173 +393,140 @@ impl Tia {
     }
 
     fn render_scanline(&mut self, row: usize) {
-        let (br, bg, bb) = self.get_color(self.colubk);
-        let (pr, pg, pb) = self.get_color(self.colupf);
-        let (p0r, p0g, p0b) = self.get_color(self.colup0);
-        let (p1r, p1g, p1b) = self.get_color(self.colup1);
+    // ✅ إصلاح VBLANK: إذا كان VBLANK نشطاً، اجعل الخط أسود بالكامل
+    if self.vblank {
         let base = row * FB_WIDTH * 4;
+        for i in 0..(FB_WIDTH * 4) {
+            self.framebuffer[base + i] = 0; // أسود
+        }
+        return; // اخرج من الدالة ولا ترسم أي شيء آخر
+    }
 
-        let mut col_p0_p1 = false;
-        let mut col_p0_pf = false;
-        let mut col_p0_bl = false;
-        let mut col_p0_m0 = false;
-        let mut col_p0_m1 = false;
-        let mut col_p1_pf = false;
-        let mut col_p1_bl = false;
-        let mut col_p1_m0 = false;
-        let mut col_p1_m1 = false;
-        let mut col_m0_p0 = false;
-        let mut col_m1_p0 = false;
-        let mut col_m0_m1 = false;
-        let mut col_bl_pf = false;
+    // --- بداية الكود الأصلي الخاص بك ---
+    let (br, bg, bb) = self.get_color(self.colubk);
+    let (pr, pg, pb) = self.get_color(self.colupf);
+    let (p0r, p0g, p0b) = self.get_color(self.colup0);
+    let (p1r, p1g, p1b) = self.get_color(self.colup1);
+    let base = row * FB_WIDTH * 4;
 
-        for x in 0..FB_WIDTH {
-            let mut r = br;
-            let mut g = bg;
-            let mut b = bb;
+    let mut col_p0_p1 = false;
+    let mut col_p0_pf = false;
+    let mut col_p0_bl = false;
+    let mut col_p0_m0 = false;
+    let mut col_p0_m1 = false;
+    let mut col_p1_pf = false;
+    let mut col_p1_bl = false;
+    let mut col_p1_m0 = false;
+    let mut col_p1_m1 = false;
+    let mut col_m0_p0 = false;
+    let mut col_m1_p0 = false;
+    let mut col_m0_m1 = false;
+    let mut col_bl_pf = false;
 
-            let is_pf = self.playfield_bit(x as u32);
-            if is_pf {
-                r = pr;
-                g = pg;
-                b = pb;
-            }
+    for x in 0..FB_WIDTH {
+        let mut r = br;
+        let mut g = bg;
+        let mut b = bb;
 
-            let mut is_p0 = false;
-            if self.grp0 != 0 {
-                let dx = x as i32 - self.hpos_p0 as i32;
-                if (0..8).contains(&dx) {
-                    let bit = if self.refp0 { dx } else { 7 - dx };
-                    if (self.grp0 >> bit) & 1 != 0 {
-                        r = p0r;
-                        g = p0g;
-                        b = p0b;
-                        is_p0 = true;
-                    }
-                }
-            }
+        let is_pf = self.playfield_bit(x as u32);
+        if is_pf {
+            r = pr;
+            g = pg;
+            b = pb;
+        }
 
-            let mut is_p1 = false;
-            if self.grp1 != 0 {
-                let dx = x as i32 - self.hpos_p1 as i32;
-                if (0..8).contains(&dx) {
-                    let bit = if self.refp1 { dx } else { 7 - dx };
-                    if (self.grp1 >> bit) & 1 != 0 {
-                        r = p1r;
-                        g = p1g;
-                        b = p1b;
-                        is_p1 = true;
-                    }
-                }
-            }
-
-            let mut is_bl = false;
-            if self.enabl {
-                let dx = x as i32 - self.hpos_bl as i32;
-                if (0..2).contains(&dx) {
-                    r = pr;
-                    g = pg;
-                    b = pb;
-                    is_bl = true;
-                }
-            }
-
-            let mut is_m0 = false;
-            if self.enam0 {
-                let dx = x as i32 - self.hpos_m0 as i32;
-                if (0..2).contains(&dx) {
+        let mut is_p0 = false;
+        if self.grp0 != 0 {
+            let dx = x as i32 - self.hpos_p0 as i32;
+            if (0..8).contains(&dx) {
+                let bit = if self.refp0 { dx } else { 7 - dx };
+                if (self.grp0 >> bit) & 1 != 0 {
                     r = p0r;
                     g = p0g;
                     b = p0b;
-                    is_m0 = true;
+                    is_p0 = true;
                 }
             }
+        }
 
-            let mut is_m1 = false;
-            if self.enam1 {
-                let dx = x as i32 - self.hpos_m1 as i32;
-                if (0..2).contains(&dx) {
+        let mut is_p1 = false;
+        if self.grp1 != 0 {
+            let dx = x as i32 - self.hpos_p1 as i32;
+            if (0..8).contains(&dx) {
+                let bit = if self.refp1 { dx } else { 7 - dx };
+                if (self.grp1 >> bit) & 1 != 0 {
                     r = p1r;
                     g = p1g;
                     b = p1b;
-                    is_m1 = true;
+                    is_p1 = true;
                 }
             }
-
-            if is_p0 && is_p1 {
-                col_p0_p1 = true;
-            }
-            if is_p0 && is_pf {
-                col_p0_pf = true;
-            }
-            if is_p0 && is_bl {
-                col_p0_bl = true;
-            }
-            if is_p0 && is_m0 {
-                col_p0_m0 = true;
-            }
-            if is_p0 && is_m1 {
-                col_p0_m1 = true;
-            }
-            if is_p1 && is_pf {
-                col_p1_pf = true;
-            }
-            if is_p1 && is_bl {
-                col_p1_bl = true;
-            }
-            if is_p1 && is_m0 {
-                col_p1_m0 = true;
-            }
-            if is_p1 && is_m1 {
-                col_p1_m1 = true;
-            }
-            if is_m0 && is_p0 {
-                col_m0_p0 = true;
-            }
-            if is_m1 && is_p0 {
-                col_m1_p0 = true;
-            }
-            if is_m0 && is_m1 {
-                col_m0_m1 = true;
-            }
-            if is_bl && is_pf {
-                col_bl_pf = true;
-            }
-
-            let idx = base + x * 4;
-            self.framebuffer[idx] = r;
-            self.framebuffer[idx + 1] = g;
-            self.framebuffer[idx + 2] = b;
-            self.framebuffer[idx + 3] = 255;
         }
 
-        if col_p0_p1 {
-            self.cxppmm |= 0x80;
+        let mut is_bl = false;
+        if self.enabl {
+            let dx = x as i32 - self.hpos_bl as i32;
+            if (0..2).contains(&dx) {
+                r = pr;
+                g = pg;
+                b = pb;
+                is_bl = true;
+            }
         }
-        if col_m0_m1 {
-            self.cxppmm |= 0x40;
+
+        let mut is_m0 = false;
+        if self.enam0 {
+            let dx = x as i32 - self.hpos_m0 as i32;
+            if (0..2).contains(&dx) {
+                r = p0r;
+                g = p0g;
+                b = p0b;
+                is_m0 = true;
+            }
         }
-        if col_m0_p0 {
-            self.cxm0p |= 0x80;
+
+        let mut is_m1 = false;
+        if self.enam1 {
+            let dx = x as i32 - self.hpos_m1 as i32;
+            if (0..2).contains(&dx) {
+                r = p1r;
+                g = p1g;
+                b = p1b;
+                is_m1 = true;
+            }
         }
-        if col_m1_p0 {
-            self.cxm1p |= 0x80;
-        }
-        if col_p0_pf {
-            self.cxp0fb |= 0x80;
-        }
-        if col_p0_bl {
-            self.cxp0fb |= 0x40;
-        }
-        if col_p1_pf {
-            self.cxp1fb |= 0x80;
-        }
-        if col_p1_bl {
-            self.cxp1fb |= 0x40;
-        }
-        if col_bl_pf {
-            self.cxblpf |= 0x80;
-        }
+
+        if is_p0 && is_p1 { col_p0_p1 = true; }
+        if is_p0 && is_pf { col_p0_pf = true; }
+        if is_p0 && is_bl { col_p0_bl = true; }
+        if is_p0 && is_m0 { col_p0_m0 = true; }
+        if is_p0 && is_m1 { col_p0_m1 = true; }
+        if is_p1 && is_pf { col_p1_pf = true; }
+        if is_p1 && is_bl { col_p1_bl = true; }
+        if is_p1 && is_m0 { col_p1_m0 = true; }
+        if is_p1 && is_m1 { col_p1_m1 = true; }
+        if is_m0 && is_p0 { col_m0_p0 = true; }
+        if is_m1 && is_p0 { col_m1_p0 = true; }
+        if is_m0 && is_m1 { col_m0_m1 = true; }
+        if is_bl && is_pf { col_bl_pf = true; }
+
+        let idx = base + x * 4;
+        self.framebuffer[idx] = r;
+        self.framebuffer[idx + 1] = g;
+        self.framebuffer[idx + 2] = b;
+        self.framebuffer[idx + 3] = 255;
+    }
+
+    if col_p0_p1 { self.cxppmm |= 0x80; }
+    if col_m0_m1 { self.cxppmm |= 0x40; }
+    if col_m0_p0 { self.cxm0p |= 0x80; }
+    if col_m1_p0 { self.cxm1p |= 0x80; }
+    if col_p0_pf { self.cxp0fb |= 0x80; }
+    if col_p0_bl { self.cxp0fb |= 0x40; }
+    if col_p1_pf { self.cxp1fb |= 0x80; }
+    if col_p1_bl { self.cxp1fb |= 0x40; }
+    if col_bl_pf { self.cxblpf |= 0x80; }
+    }
     }
 
     pub fn background_color(&self) -> Color {

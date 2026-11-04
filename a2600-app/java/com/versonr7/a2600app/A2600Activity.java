@@ -34,6 +34,10 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
     private boolean running = false;
     private Thread renderThread;
 
+    // حالة أزرار التحكم
+    private boolean joyUp = false, joyDown = false, joyLeft = false, joyRight = false, joyFire = false;
+    private boolean resetHeld = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -66,14 +70,7 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
     protected void onResume() {
         super.onResume();
         nativeOnResume();
-        if (surfaceView.getHolder().getSurface() != null
-                && surfaceView.getHolder().getSurface().isValid()) {
-            if (renderThread == null || !renderThread.isAlive()) {
-                running = true;
-                renderThread = new Thread(this::renderLoop);
-                renderThread.start();
-            }
-        }
+        // ✅ إزالة بدء الخيط من هنا، لأن surfaceCreated سيتكفل به
     }
 
     @Override
@@ -89,8 +86,6 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
     public boolean dispatchKeyEvent(KeyEvent event) {
         int code = event.getKeyCode();
         int action = event.getAction();
-        Log.i(TAG, "dispatchKeyEvent: code=" + code + " action=" + action);
-
         boolean down = (action == KeyEvent.ACTION_DOWN);
         boolean up = (action == KeyEvent.ACTION_UP);
 
@@ -124,8 +119,8 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
 
             case KeyEvent.KEYCODE_BUTTON_START:
             case KeyEvent.KEYCODE_BUTTON_SELECT:
+                // ✅ START/SELECT يعملان كـ Game Reset في Atari 2600
                 if (down) {
-                    nativeOnJoystick(0, 0, 0, 0, 0);
                     nativeOnReset();
                 }
                 return true;
@@ -139,14 +134,10 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
                 == android.view.InputDevice.SOURCE_JOYSTICK) {
             float x = event.getAxisValue(MotionEvent.AXIS_X);
             float y = event.getAxisValue(MotionEvent.AXIS_Y);
-
-            Log.i(TAG, "Analog: x=" + x + " y=" + y);
-
             if (Math.abs(x) < 0.3f && Math.abs(y) < 0.3f) {
                 nativeOnJoystick(0, 0, 0, 0, 0);
                 return true;
             }
-
             int u = (y < -0.5f) ? 1 : 0;
             int d = (y > 0.5f) ? 1 : 0;
             int l = (x < -0.5f) ? 1 : 0;
@@ -157,48 +148,58 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
         return super.onGenericMotionEvent(event);
     }
 
-    // ============ Touch Support ============
+    // ============ Touch Support (مع دعم اللمس المتعدد) ============
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        float x = event.getX();
-        float y = event.getY();
+        int action = event.getActionMasked();
         int w = surfaceView.getWidth();
         int h = surfaceView.getHeight();
 
-        boolean up = false, down = false, left = false, right = false, fire = false;
-        boolean resetTrigger = false;
+        // إعادة تعيين الحالة عند رفع الإصبع أو الإلغاء
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            joyUp = joyDown = joyLeft = joyRight = joyFire = false;
+            resetHeld = false;
+            nativeOnJoystick(0, 0, 0, 0, 0);
+            return true;
+        }
 
-        int action = event.getActionMasked();
+        // تحليل جميع المؤشرات النشطة
+        boolean up = false, down = false, left = false, right = false, fire = false, reset = false;
+        int pointerCount = event.getPointerCount();
 
-        if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE) {
+        for (int i = 0; i < pointerCount; i++) {
+            float x = event.getX(i);
+            float y = event.getY(i);
             float xr = x / w;
             float yr = y / h;
 
-            // منطقة RESET (أعلى يمين)
             if (yr < 0.2f && xr > 0.8f) {
-                resetTrigger = true;
-            }
-            // النصف الأيسر السفلي = Joystick
-            else if (yr > 0.5f && xr < 0.5f) {
+                reset = true;
+            } else if (yr > 0.5f && xr < 0.5f) {
                 if (yr < 0.7f) up = true;
                 else if (yr > 0.9f) down = true;
                 else if (xr < 0.25f) left = true;
                 else right = true;
-            }
-            // النصف الأيمن السفلي = Fire
-            else if (yr > 0.5f && xr >= 0.5f) {
+            } else if (yr > 0.5f && xr >= 0.5f) {
                 fire = true;
             }
         }
 
-        Log.i(TAG, "Touch: xr=" + (x/w) + " yr=" + (y/h)
-            + " → U" + (up?1:0) + " D" + (down?1:0)
-            + " L" + (left?1:0) + " R" + (right?1:0)
-            + " F" + (fire?1:0) + " RST" + (resetTrigger?1:0));
+        // إرسال التغييرات فقط إذا تغيرت الحالة
+        if (up != joyUp || down != joyDown || left != joyLeft || right != joyRight || fire != joyFire) {
+            joyUp = up; joyDown = down; joyLeft = left; joyRight = right; joyFire = fire;
+            nativeOnJoystick(up ? 1 : 0, down ? 1 : 0, left ? 1 : 0, right ? 1 : 0, fire ? 1 : 0);
+        }
 
-        if (resetTrigger) nativeOnReset();
-        nativeOnJoystick(up?1:0, down?1:0, left?1:0, right?1:0, fire?1:0);
+        // معالجة RESET (يُرسل مرة واحدة عند الضغط)
+        if (reset && !resetHeld) {
+            resetHeld = true;
+            nativeOnReset();
+        } else if (!reset) {
+            resetHeld = false;
+        }
+
         return true;
     }
 
@@ -207,11 +208,9 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
         Log.i(TAG, "Surface created");
-
         if (renderThread != null && renderThread.isAlive()) {
             return;
         }
-
         nativeOnSurfaceCreated(holder.getSurface());
         running = true;
         renderThread = new Thread(this::renderLoop);
@@ -228,11 +227,15 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
     public void surfaceDestroyed(SurfaceHolder holder) {
         Log.i(TAG, "Surface destroyed");
         running = false;
-        try {
-            renderThread.join();
-        } catch (InterruptedException e) {
-            Log.e(TAG, "Render thread interrupted", e);
+        if (renderThread != null) {
+            try {
+                renderThread.join();
+            } catch (InterruptedException e) {
+                Log.e(TAG, "Render thread interrupted", e);
+            }
+            renderThread = null;
         }
+        nativeOnSurfaceDestroyed(); // ✅ إضافة استدعاء
     }
 
     // ============ Render Loop ============

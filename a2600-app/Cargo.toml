@@ -18,6 +18,7 @@ za-xmb = { path = "../../ZAVOGLES-GUI/za-xmb" }
 zae-a2600 = { path = "../zae-a2600" }
 heapless = "0.9.3"
 libm = "0.2.16"
+libc = "0.2"
 
 [package.metadata.android]
 package = "com.versonr7.a2600app"

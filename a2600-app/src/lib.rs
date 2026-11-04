@@ -39,6 +39,26 @@ static HEIGHT: AtomicI32 = AtomicI32::new(0);
 static FRAME_COUNT: AtomicU32 = AtomicU32::new(0);
 static INITIALIZED: AtomicBool = AtomicBool::new(false);
 static FRAME_LOCK: AtomicBool = AtomicBool::new(false);
+struct FrameLockGuard;
+
+impl FrameLockGuard {
+    fn try_acquire() -> Option<Self> {
+        if FRAME_LOCK
+            .compare_exchange(false, true, Ordering::Acquire, Ordering::Acquire)
+            .is_ok()
+        {
+            Some(FrameLockGuard)
+        } else {
+            None
+        }
+    }
+}
+
+impl Drop for FrameLockGuard {
+    fn drop(&mut self) {
+        FRAME_LOCK.store(false, Ordering::Release);
+    }
+}
 
 static mut GL_CTX_STORAGE: MaybeUninit<GlContext> = MaybeUninit::uninit();
 static GL_CTX: AtomicPtr<GlContext> = AtomicPtr::new(core::ptr::null_mut());
@@ -138,28 +158,29 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnSurfaceCreate
             let w = win.width();
             let h = win.height();
 
-            let old_ctx = GL_CTX.load(Ordering::Acquire);
-            if !old_ctx.is_null() {
-                core::ptr::drop_in_place(old_ctx);
-                GL_CTX.store(core::ptr::null_mut(), Ordering::Release);
-                BATCH.store(core::ptr::null_mut(), Ordering::Release);
-                FONT.store(core::ptr::null_mut(), Ordering::Release);
-                logfox!("ZAVOGLES", "Old GL context dropped");
-            }
+            WIDTH.store(w, Ordering::Release);
+            HEIGHT.store(h, Ordering::Release);
+            INITIALIZED.store(true, Ordering::Release);
+            RUNNING.store(true, Ordering::Release);
 
-            match GlContext::from_window(win) {
-                Ok(ctx) => {
-                    GL_CTX_STORAGE.write(ctx);
-                    GL_CTX.store(GL_CTX_STORAGE.as_mut_ptr(), Ordering::Release);
-
-                    WIDTH.store(w, Ordering::Release);
-                    HEIGHT.store(h, Ordering::Release);
-                    INITIALIZED.store(true, Ordering::Release);
-                    RUNNING.store(true, Ordering::Release);
-
-                    logfox!("ZAVOGLES", "EGL context ready: {}x{}", w, h);
+            let ctx_ptr = GL_CTX.load(Ordering::Acquire);
+            if ctx_ptr.is_null() {
+                // أول مرة: إنشاء سياق جديد بالكامل
+                match GlContext::from_window(win) {
+                    Ok(ctx) => {
+                        GL_CTX_STORAGE.write(ctx);
+                        GL_CTX.store(GL_CTX_STORAGE.as_mut_ptr(), Ordering::Release);
+                        logfox!("ZAVOGLES", "EGL context created for the first time");
+                    }
+                    Err(e) => logfox!("ZAVOGLES", "ERROR: GlContext failed: {}", e),
                 }
-                Err(e) => logfox!("ZAVOGLES", "ERROR: GlContext failed: {}", e),
+            } else {
+                // السياق موجود: قم بتحديث السطح فقط
+                let ctx = &mut *ctx_ptr;
+                match ctx.update_surface(win) {
+                    Ok(()) => logfox!("ZAVOGLES", "EGL surface updated successfully"),
+                    Err(e) => logfox!("ZAVOGLES", "ERROR: update_surface failed: {}", e),
+                }
             }
         } else {
             logfox!("ZAVOGLES", "ERROR: NativeWindow::from_raw failed");
@@ -269,22 +290,18 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
     _env: *mut c_void,
     _class: *mut c_void,
 ) {
-    if FRAME_LOCK
-        .compare_exchange(false, true, Ordering::Acquire, Ordering::Acquire)
-        .is_err()
-    {
-        return;
-    }
+    let _guard = match FrameLockGuard::try_acquire() {
+        Some(g) => g,
+        None => return,
+    };
 
     if !RUNNING.load(Ordering::Acquire) {
-        FRAME_LOCK.store(false, Ordering::Release);
-        return;
+        return; // الـ Guard سيحرر القفل تلقائياً
     }
 
     unsafe {
         let ctx_ptr = GL_CTX.load(Ordering::Acquire);
         if ctx_ptr.is_null() {
-            FRAME_LOCK.store(false, Ordering::Release);
             return;
         }
 
@@ -294,7 +311,6 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         if batch_ptr.is_null() {
             if let Err(e) = ctx.make_current() {
                 logfox!("A2600", "ERROR: make_current failed: {}", e);
-                FRAME_LOCK.store(false, Ordering::Release);
                 return;
             }
             ctx.setup_gl_state();
@@ -307,7 +323,6 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
                 }
                 Err(e) => {
                     logfox!("A2600", "ERROR: BatchRenderer failed: {}", e);
-                    FRAME_LOCK.store(false, Ordering::Release);
                     return;
                 }
             }
@@ -467,8 +482,6 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
             }
         }
     }
-
-    FRAME_LOCK.store(false, Ordering::Release);
 }
 
 // ===== PANIC HANDLER =====
@@ -480,7 +493,7 @@ pub extern "C" fn rust_eh_personality() {}
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
     za_sys::android_log(za_sys::LogLevel::Error, "ZAVOGLES", "PANIC!");
-    loop {}
+    unsafe { libc::abort() }
 }
 
 // ===== TESTS =====
@@ -502,6 +515,5 @@ mod tests {
         assert!(FRAME_LOCK
             .compare_exchange(false, true, Ordering::Acquire, Ordering::Acquire)
             .is_err());
-        FRAME_LOCK.store(false, Ordering::Release);
     }
 }

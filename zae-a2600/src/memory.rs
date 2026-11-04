@@ -13,6 +13,7 @@ pub struct Memory {
     pub riot_timer: u8,
     pub riot_prescaler: u32,
     pub riot_prescaler_value: u32,
+    pub riot_timer_started: bool,
     pub swcha: u8,
     pub swchb: u8,
 }
@@ -27,6 +28,7 @@ impl Memory {
             riot_timer: 0,
             riot_prescaler: 1,
             riot_prescaler_value: 1,
+            riot_timer_started: false,
             swcha: 0xFF,
             swchb: 0x0F, // ✅ البت 3 = 1 → وضع الألوان
         }
@@ -54,46 +56,56 @@ impl Memory {
     }
 
     fn riot_write(&mut self, addr: u16, value: u8) {
-        match addr & 0x1F {
-            0x14 => {
-                self.riot_timer = value;
-                self.riot_prescaler_value = 1;
-                self.riot_prescaler = 1;
-            }
-            0x15 => {
-                self.riot_timer = value;
-                self.riot_prescaler_value = 8;
-                self.riot_prescaler = 8;
-            }
-            0x16 => {
-                self.riot_timer = value;
-                self.riot_prescaler_value = 64;
-                self.riot_prescaler = 64;
-            }
-            0x17 => {
-                self.riot_timer = value;
-                self.riot_prescaler_value = 1024;
-                self.riot_prescaler = 1024;
-            }
-            0x02 => {
-                self.riot_regs[2] = value;
-            }
-            _ => {}
+    match addr & 0x1F {
+        0x14 => {
+            self.riot_timer = value;
+            self.riot_prescaler_value = 1;
+            self.riot_prescaler = 1;
+            self.riot_timer_started = false; // ✅ لا تبدأ العد فوراً
         }
+        0x15 => {
+            self.riot_timer = value;
+            self.riot_prescaler_value = 8;
+            self.riot_prescaler = 8;
+            self.riot_timer_started = false;
+        }
+        0x16 => {
+            self.riot_timer = value;
+            self.riot_prescaler_value = 64;
+            self.riot_prescaler = 64;
+            self.riot_timer_started = false;
+        }
+        0x17 => {
+            self.riot_timer = value;
+            self.riot_prescaler_value = 1024;
+            self.riot_prescaler = 1024;
+            self.riot_timer_started = false;
+        }
+        0x02 => {
+            self.riot_regs[2] = value;
+        }
+        _ => {}
+    }
     }
 
     pub fn tick_riot(&mut self, cycles: u32) {
-        for _ in 0..cycles {
-            if self.riot_prescaler > 0 {
-                self.riot_prescaler -= 1;
-            }
-            if self.riot_prescaler == 0 {
-                self.riot_prescaler = self.riot_prescaler_value;
-                if self.riot_timer > 0 {
-                    self.riot_timer -= 1;
-                }
+    for _ in 0..cycles {
+        // ✅ انتظر دورة واحدة قبل بدء العد (حسب مواصفات 6532)
+        if !self.riot_timer_started {
+            self.riot_timer_started = true;
+            continue; // استهلك الدورة الأولى دون إنقاص
+        }
+
+        if self.riot_prescaler > 0 {
+            self.riot_prescaler -= 1;
+        }
+        if self.riot_prescaler == 0 {
+            self.riot_prescaler = self.riot_prescaler_value;
+            if self.riot_timer > 0 {
+                self.riot_timer -= 1;
             }
         }
+    }
     }
 
     /// ✅ تصحيح: يستخدم البتات 4-7 (Player 0)، وليس 0-3 (Player 1)
