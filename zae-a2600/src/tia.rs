@@ -263,14 +263,25 @@ impl Tia {
     }
 
     fn end_of_scanline(&mut self) {
-        if self.scanline >= VISIBLE_START && (self.scanline - VISIBLE_START) < FB_HEIGHT as u16 {
-            let row = (self.scanline - VISIBLE_START) as usize;
+    if self.scanline >= VISIBLE_START && (self.scanline - VISIBLE_START) < FB_HEIGHT as u16 {
+        let row = (self.scanline - VISIBLE_START) as usize;
+        // ✅ إذا كان VBLANK نشطاً، املأ السطر بالأسود
+        if self.vblank {
+            let base = row * FB_WIDTH * 4;
+            for i in 0..(FB_WIDTH * 4) {
+                self.framebuffer[base + i] = 0;
+            }
+        } else {
             self.render_scanline(row);
         }
-        self.scanline = self.scanline.wrapping_add(1);
-        if self.scanline >= TOTAL_SCANLINES {
-            self.scanline = 0;
-        }
+    }
+    self.scanline = self.scanline.wrapping_add(1);
+    if self.scanline >= TOTAL_SCANLINES {
+        self.scanline = 0;
+        // ✅ مسح الإطار بالكامل عند بداية إطار جديد
+        // (يمنع بقايا الإطار السابق)
+        self.framebuffer.fill(0);
+    }
     }
 
     fn playfield_bit(&self, x: u32) -> bool {

@@ -210,8 +210,8 @@ impl Cpu {
     }
 
     pub fn run_frame(&mut self, mem: &mut Memory) -> u32 {
-        // إطار كامل: 262 خط مسح × 76 دورة
-        self.run_for_cycles(mem, 19912)
+    // ✅ إطار NTSC واحد = 262 سطراً × 76 دورة = 19912 دورة
+    self.run_for_cycles(mem, 19912)
     }
 
     pub fn execute(&mut self, opcode: u8, mem: &mut Memory) -> u32 {
