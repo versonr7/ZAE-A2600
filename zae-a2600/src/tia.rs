@@ -198,7 +198,6 @@ impl Tia {
                 if self.vsync && !was {
                     self.scanline = 0;
                     self.cycle_in_scanline = 0;
-                    // ✅ سجل VSYNC
                     android_log(za_sys::LogLevel::Info, "TIA", "VSYNC triggered: scanline reset");
                 }
             }
@@ -206,8 +205,8 @@ impl Tia {
                 let was = self.vblank;
                 self.vblank = value & 0x02 != 0;
                 if self.vblank != was {
-    let msg = if self.vblank { "VBLANK on" } else { "VBLANK off" };
-    android_log(za_sys::LogLevel::Info, "TIA", msg);
+                    let msg = if self.vblank { "VBLANK on" } else { "VBLANK off" };
+                    android_log(za_sys::LogLevel::Info, "TIA", msg);
                 }
             }
             0x02 => self.wsync = true,
@@ -256,6 +255,12 @@ impl Tia {
             }
             _ => {}
         }
+
+        // ✅ التعديل الجديد: إعادة رسم السطر الحالي فوراً عند تغيير أي سجل
+        if !self.vblank && self.scanline >= VISIBLE_START && (self.scanline - VISIBLE_START) < FB_HEIGHT as u16 {
+            let row = (self.scanline - VISIBLE_START) as usize;
+            self.render_scanline(row);
+        }
     }
 
     pub fn tick(&mut self, cycles: u32) {
@@ -287,7 +292,6 @@ impl Tia {
         self.scanline = self.scanline.wrapping_add(1);
         if self.scanline >= TOTAL_SCANLINES {
             self.scanline = 0;
-            // ✅ سجل نهاية الإطار
             android_log(za_sys::LogLevel::Info, "TIA", "Frame ended");
         }
     }
@@ -443,6 +447,11 @@ impl Tia {
         if col_p1_pf { self.cxp1fb |= 0x80; }
         if col_p1_bl { self.cxp1fb |= 0x40; }
         if col_bl_pf { self.cxblpf |= 0x80; }
+
+        if col_p0_m0 { self.cxm0p |= 0x40; }
+        if col_p0_m1 { self.cxm1p |= 0x40; }
+        if col_p1_m0 { self.cxm0p |= 0x40; }
+        if col_p1_m1 { self.cxm1p |= 0x40; }
     }
 
     pub fn background_color(&self) -> Color {

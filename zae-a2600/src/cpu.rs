@@ -171,25 +171,25 @@ impl Cpu {
     }
 
     pub fn step(&mut self, mem: &mut Memory) -> u32 {
-        let opcode = self.read_byte(mem, self.pc);
-        self.pc = self.pc.wrapping_add(1);
-        let base_cycles = self.execute(opcode, mem);
+    let opcode = self.read_byte(mem, self.pc);
+    self.pc = self.pc.wrapping_add(1);
+    let base_cycles = self.execute(opcode, mem);
 
-        mem.tia.tick(base_cycles);
-        mem.tick_riot(base_cycles); // ← تأكد أن هذا السطر موجود
+    mem.tia.tick(base_cycles);
+    mem.tick_riot(base_cycles); // ✅ هذا يكفي
 
-        let mut total_cycles = base_cycles;
+    let mut total_cycles = base_cycles;
 
-        if mem.tia.wsync {
-            let remaining = 76 - (mem.tia.cycle_in_scanline % 76);
-            mem.tia.tick(remaining);
-            mem.tick_riot(remaining); // ← تأكد أن هذا السطر موجود
-            total_cycles += remaining;
-            mem.tia.wsync = false;
-        }
+    if mem.tia.wsync {
+        let remaining = 76 - (mem.tia.cycle_in_scanline % 76);
+        mem.tia.tick(remaining);
+        // ❌ احذف السطر المكرر: mem.tick_riot(remaining);
+        total_cycles += remaining;
+        mem.tia.wsync = false;
+    }
 
-        self.cycles += total_cycles;
-        total_cycles
+    self.cycles += total_cycles;
+    total_cycles
     }
 
     pub fn run_for_cycles(&mut self, mem: &mut Memory, target_cycles: u32) -> u32 {
