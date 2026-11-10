@@ -219,9 +219,21 @@ impl Tia {
             0x0A => self.ctrlpf = value,
             0x0B => self.refp0 = value & 0x08 != 0,
             0x0C => self.refp1 = value & 0x08 != 0,
-            0x0D => self.pf0 = value,
-            0x0E => self.pf1 = value,
-            0x0F => self.pf2 = value,
+            0x0D => {
+    self.pf0 = value;
+    let msg = if value != 0 { "PF0 written" } else { "PF0 cleared" };
+    android_log(za_sys::LogLevel::Debug, "TIA", msg);
+}
+0x0E => {
+    self.pf1 = value;
+    let msg = if value != 0 { "PF1 written" } else { "PF1 cleared" };
+    android_log(za_sys::LogLevel::Debug, "TIA", msg);
+}
+0x0F => {
+    self.pf2 = value;
+    let msg = if value != 0 { "PF2 written" } else { "PF2 cleared" };
+    android_log(za_sys::LogLevel::Debug, "TIA", msg);
+}
             0x10 => self.hpos_p0 = hpos_from_cycle(self.cycle_in_scanline),
             0x11 => self.hpos_p1 = hpos_from_cycle(self.cycle_in_scanline),
             0x12 => self.hpos_m0 = hpos_from_cycle(self.cycle_in_scanline),
@@ -243,12 +255,13 @@ impl Tia {
                 };
             }
             0x2A => {
-                let d = self.hmove_pending as i16;
-                self.hpos_p0 = ((self.hpos_p0 as i16 + d).clamp(0, 159)) as u8;
-                self.hpos_p1 = ((self.hpos_p1 as i16 + d).clamp(0, 159)) as u8;
-                self.hpos_m0 = ((self.hpos_m0 as i16 + d).clamp(0, 159)) as u8;
-                self.hpos_m1 = ((self.hpos_m1 as i16 + d).clamp(0, 159)) as u8;
-                self.hpos_bl = ((self.hpos_bl as i16 + d).clamp(0, 159)) as u8;
+    // ✅ تعطيل HMOVE مؤقتاً لاختبار الاهتزاز
+    // let d = self.hmove_pending as i16;
+    // self.hpos_p0 = ((self.hpos_p0 as i16 + d).clamp(0, 159)) as u8;
+    // self.hpos_p1 = ((self.hpos_p1 as i16 + d).clamp(0, 159)) as u8;
+    // self.hpos_m0 = ((self.hpos_m0 as i16 + d).clamp(0, 159)) as u8;
+    // self.hpos_m1 = ((self.hpos_m1 as i16 + d).clamp(0, 159)) as u8;
+    // self.hpos_bl = ((self.hpos_bl as i16 + d).clamp(0, 159)) as u8;
             }
             0x2B => {
                 self.hmove_pending = 0;
@@ -325,7 +338,12 @@ impl Tia {
         }
 
         let (br, bg, bb) = self.get_color(self.colubk);
-        let (pr, pg, pb) = self.get_color(self.colupf);
+        let score_mode = (self.ctrlpf & 0x04) != 0;
+let (pr, pg, pb) = if score_mode { 
+    self.get_color(self.colup0) 
+} else { 
+    self.get_color(self.colupf) 
+};
         let (p0r, p0g, p0b) = self.get_color(self.colup0);
         let (p1r, p1g, p1b) = self.get_color(self.colup1);
         let base = row * FB_WIDTH * 4;
@@ -350,11 +368,22 @@ impl Tia {
             let mut b = bb;
 
             let is_pf = self.playfield_bit(x as u32);
-            if is_pf {
-                r = pr;
-                g = pg;
-                b = pb;
-            }
+if is_pf {
+    if score_mode {
+        // في وضع Score Mode، النصف الأيسر يأخذ لون اللاعب 0، والأيمن يأخذ لون اللاعب 1
+        if x < FB_WIDTH / 2 {
+            let (c0r, c0g, c0b) = self.get_color(self.colup0);
+            r = c0r; g = c0g; b = c0b;
+        } else {
+            let (c1r, c1g, c1b) = self.get_color(self.colup1);
+            r = c1r; g = c1g; b = c1b;
+        }
+    } else {
+        r = pr;
+        g = pg;
+        b = pb;
+    }
+}
 
             let mut is_p0 = false;
             if self.grp0 != 0 {
