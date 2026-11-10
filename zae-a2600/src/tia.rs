@@ -152,28 +152,41 @@ impl Tia {
         }
     }
 
-    pub fn read_register(&self, addr: u16) -> u8 {
-        match addr {
-            TIA_VBLANK => {
-                if self.vblank {
-                    0x80
-                } else {
-                    0x00
-                }
-            }
-            TIA_COLUBK => self.colubk,
-            0x30 => self.cxm0p,
-            0x31 => self.cxm1p,
-            0x32 => self.cxp0fb,
-            0x33 => self.cxp1fb,
-            0x34 => self.cxm0fb,
-            0x35 => self.cxm1fb,
-            0x36 => self.cxblpf,
-            0x37 => self.cxppmm,
-            0x3C => self.inpt4,
-            0x3D => 0x80,
-            _ => 0,
+    fn playfield_bit(&self, x: u32) -> bool {
+    let is_right_half = x >= 80;
+    let reflect = (self.ctrlpf & 0x01) != 0;
+
+    // 1. حساب الإحداثي داخل النصف الأيسر من الشاشة (من 0 إلى 79)
+    let col = if is_right_half && reflect {
+        159 - x // انعكاس للنصف الأيمن
+    } else if is_right_half {
+        x - 80 // تكرار عادي للنصف الأيمن
+    } else {
+        x      // النصف الأيسر
+    };
+
+    // 2. تقسيم الإحداثي إلى مجموعات من 4 بكسل (لأن كل بت يغطي 4 بكسل)
+    let bit_index = col / 4; // سيكون من 0 إلى 19
+
+    // 3. قراءة البتات الصحيحة بناءً على تصميم العتاد
+    match bit_index {
+        // الأعمدة 0-3: تأتي من البتات العلوية (4-7) في PF0، ولكن بترتيب معكوس (من اليمين لليسار)
+        0..=3 => {
+            let bit_to_check = 3 - bit_index; // 3, 2, 1, 0
+            (self.pf0 >> (4 + bit_to_check)) & 1 != 0
         }
+        // الأعمدة 4-11: تأتي من PF1 بالترتيب الطبيعي (من اليسار لليمين)
+        4..=11 => {
+            let bit_to_check = bit_index - 4; // 0, 1, ..., 7
+            (self.pf1 >> bit_to_check) & 1 != 0
+        }
+        // الأعمدة 12-19: تأتي من PF2 بترتيب معكوس (من اليمين لليسار)
+        12..=19 => {
+            let bit_to_check = 7 - (bit_index - 12); // 7, 6, ..., 0
+            (self.pf2 >> bit_to_check) & 1 != 0
+        }
+        _ => false,
+    }
     }
 
     pub fn clear_collision(&mut self, addr: u16) {
