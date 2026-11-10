@@ -310,7 +310,7 @@ impl Tia {
     }
 
     fn playfield_bit(&self, x: u32) -> bool {
-    // 1. تحديد ما إذا كنا في النصف الأيسر أو الأيمن (مع مراعاة الانعكاس)
+    // 1. تحديد ما إذا كنا في النصف الأيمن
     let is_right_half = x >= 80;
     let reflect = (self.ctrlpf & 0x01) != 0;
 
@@ -325,12 +325,13 @@ impl Tia {
 
     // 3. تحديد البت المقابل في سجلات PF
     let bit_index = col / 4;
+
     match bit_index {
-        // PF0: البتات 4-7، بترتيب معكوس (من اليمين لليسار)
+        // PF0: البتات 4-7، بترتيب معكوس (7,6,5,4) من اليسار لليمين
         0..=3 => (self.pf0 >> (4 + (3 - bit_index))) & 1 != 0,
-        // PF1: البتات 0-7، بترتيب طبيعي (من اليسار لليمين)
+        // PF1: البتات 0-7، بترتيب طبيعي (0,1,2,3,4,5,6,7)
         4..=11 => (self.pf1 >> (bit_index - 4)) & 1 != 0,
-        // PF2: البتات 0-7، بترتيب معكوس (من اليمين لليسار)
+        // PF2: البتات 0-7، بترتيب معكوس (7,6,5,4,3,2,1,0)
         12..=19 => (self.pf2 >> (7 - (bit_index - 12))) & 1 != 0,
         _ => false,
     }
@@ -486,11 +487,6 @@ if is_pf {
         if col_p1_pf { self.cxp1fb |= 0x80; }
         if col_p1_bl { self.cxp1fb |= 0x40; }
         if col_bl_pf { self.cxblpf |= 0x80; }
-
-        if col_p0_m0 { self.cxm0p |= 0x40; }
-        if col_p0_m1 { self.cxm1p |= 0x40; }
-        if col_p1_m0 { self.cxm0p |= 0x40; }
-        if col_p1_m1 { self.cxm1p |= 0x40; }
     }
 
     pub fn background_color(&self) -> Color {
