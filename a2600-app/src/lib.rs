@@ -425,7 +425,8 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
         // --- تشغيل إطار واحد ---
         let mem = &mut *MEM_STORAGE.as_mut_ptr();
         let cpu = &mut *CPU_STORAGE.as_mut_ptr();
-        cpu.run_frame(mem);
+        // ✅ شغّل 19912 دورة (إطار NTSC واحد) لكن دون الاعتماد على run_frame
+        cpu.run_for_cycles(mem, 19912);
 
         // ===== Logs التشخيصية =====
         logfox!(

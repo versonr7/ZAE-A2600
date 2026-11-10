@@ -1,0 +1,103 @@
+   Compiling zae-a2600 v0.1.0 (/public/ZAE-A2600/zae-a2600)
+error[E0432]: unresolved import `za_sys`
+ --> zae-a2600/src/tia.rs:2:5
+  |
+2 | use za_sys::android_log; // لاستخدام السجلات
+  |     ^^^^^^ use of unresolved module or unlinked crate `za_sys`
+  |
+  = help: if you wanted to use a crate named `za_sys`, use `cargo add za_sys` to add it to your `Cargo.toml`
+
+error[E0433]: cannot find module or crate `za_sys` in this scope
+   --> zae-a2600/src/tia.rs:202:33
+    |
+202 |                     android_log(za_sys::LogLevel::Info, "TIA", "VSYNC triggered: scanline reset");
+    |                                 ^^^^^^ use of unresolved module or unlinked crate `za_sys`
+    |
+    = help: if you wanted to use a crate named `za_sys`, use `cargo add za_sys` to add it to your `Cargo.toml`
+
+error[E0433]: cannot find module or crate `za_sys` in this scope
+   --> zae-a2600/src/tia.rs:210:17
+    |
+210 |     android_log(za_sys::LogLevel::Info, "TIA", msg);
+    |                 ^^^^^^ use of unresolved module or unlinked crate `za_sys`
+    |
+    = help: if you wanted to use a crate named `za_sys`, use `cargo add za_sys` to add it to your `Cargo.toml`
+
+error[E0433]: cannot find module or crate `za_sys` in this scope
+   --> zae-a2600/src/tia.rs:291:25
+    |
+291 |             android_log(za_sys::LogLevel::Info, "TIA", "Frame ended");
+    |                         ^^^^^^ use of unresolved module or unlinked crate `za_sys`
+    |
+    = help: if you wanted to use a crate named `za_sys`, use `cargo add za_sys` to add it to your `Cargo.toml`
+
+warning: variable `col_p0_m0` is assigned to, but never used
+   --> zae-a2600/src/tia.rs:332:13
+    |
+332 |         let mut col_p0_m0 = false;
+    |             ^^^^^^^^^^^^^
+    |
+    = note: consider using `_col_p0_m0` instead
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable `col_p0_m1` is assigned to, but never used
+   --> zae-a2600/src/tia.rs:333:13
+    |
+333 |         let mut col_p0_m1 = false;
+    |             ^^^^^^^^^^^^^
+    |
+    = note: consider using `_col_p0_m1` instead
+
+warning: variable `col_p1_m0` is assigned to, but never used
+   --> zae-a2600/src/tia.rs:336:13
+    |
+336 |         let mut col_p1_m0 = false;
+    |             ^^^^^^^^^^^^^
+    |
+    = note: consider using `_col_p1_m0` instead
+
+warning: variable `col_p1_m1` is assigned to, but never used
+   --> zae-a2600/src/tia.rs:337:13
+    |
+337 |         let mut col_p1_m1 = false;
+    |             ^^^^^^^^^^^^^
+    |
+    = note: consider using `_col_p1_m1` instead
+
+warning: value assigned to `col_p0_m0` is never read
+   --> zae-a2600/src/tia.rs:419:33
+    |
+419 |             if is_p0 && is_m0 { col_p0_m0 = true; }
+    |                                 ^^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `col_p0_m1` is never read
+   --> zae-a2600/src/tia.rs:420:33
+    |
+420 |             if is_p0 && is_m1 { col_p0_m1 = true; }
+    |                                 ^^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `col_p1_m0` is never read
+   --> zae-a2600/src/tia.rs:423:33
+    |
+423 |             if is_p1 && is_m0 { col_p1_m0 = true; }
+    |                                 ^^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `col_p1_m1` is never read
+   --> zae-a2600/src/tia.rs:424:33
+    |
+424 |             if is_p1 && is_m1 { col_p1_m1 = true; }
+    |                                 ^^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+Some errors have detailed explanations: E0432, E0433.
+For more information about an error, try `rustc --explain E0432`.
+warning: `zae-a2600` (lib) generated 8 warnings
+error: could not compile `zae-a2600` (lib) due to 4 previous errors; 8 warnings emitted

@@ -101,5 +101,6 @@ dependencies = [
  "za-disasm",
  "za-gles",
  "za-math",
+ "za-sys",
  "za-xmb",
 ]

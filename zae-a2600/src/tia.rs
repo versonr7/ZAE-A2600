@@ -310,20 +310,30 @@ impl Tia {
     }
 
     fn playfield_bit(&self, x: u32) -> bool {
-        let col = if x < 80 {
-            x
-        } else if self.ctrlpf & 0x01 != 0 {
-            159 - x
-        } else {
-            x - 80
-        };
-        let bit_index = col / 4;
-        match bit_index {
-            0..=3 => (self.pf0 >> (4 + bit_index)) & 1 != 0,
-            4..=11 => (self.pf1 >> (11 - bit_index)) & 1 != 0,
-            12..=19 => (self.pf2 >> (bit_index - 12)) & 1 != 0,
-            _ => false,
-        }
+    // 1. تحديد ما إذا كنا في النصف الأيسر أو الأيمن (مع مراعاة الانعكاس)
+    let is_right_half = x >= 80;
+    let reflect = (self.ctrlpf & 0x01) != 0;
+
+    // 2. إذا كنا في النصف الأيمن وكان الانعكاس مفعلًا، نعكس الإحداثي
+    let col = if is_right_half && reflect {
+        159 - x
+    } else if is_right_half {
+        x - 80
+    } else {
+        x
+    };
+
+    // 3. تحديد البت المقابل في سجلات PF
+    let bit_index = col / 4;
+    match bit_index {
+        // PF0: البتات 4-7، بترتيب معكوس (من اليمين لليسار)
+        0..=3 => (self.pf0 >> (4 + (3 - bit_index))) & 1 != 0,
+        // PF1: البتات 0-7، بترتيب طبيعي (من اليسار لليمين)
+        4..=11 => (self.pf1 >> (bit_index - 4)) & 1 != 0,
+        // PF2: البتات 0-7، بترتيب معكوس (من اليمين لليسار)
+        12..=19 => (self.pf2 >> (7 - (bit_index - 12))) & 1 != 0,
+        _ => false,
+    }
     }
 
     fn get_color(&self, value: u8) -> (u8, u8, u8) {
