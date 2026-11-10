@@ -1,4 +1,5 @@
 use za_math::Color;
+use za_sys::android_log; // لاستخدام السجلات
 
 pub const NTSC_PALETTE: [(u8, u8, u8); 128] = [
     (0x00, 0x00, 0x00), (0x40, 0x40, 0x40), (0x6C, 0x6C, 0x6C), (0x90, 0x90, 0x90),
@@ -197,9 +198,18 @@ impl Tia {
                 if self.vsync && !was {
                     self.scanline = 0;
                     self.cycle_in_scanline = 0;
+                    // ✅ سجل VSYNC
+                    android_log(za_sys::LogLevel::Info, "TIA", "VSYNC triggered: scanline reset");
                 }
             }
-            0x01 => self.vblank = value & 0x02 != 0,
+            0x01 => {
+                let was = self.vblank;
+                self.vblank = value & 0x02 != 0;
+                if self.vblank != was {
+    let msg = if self.vblank { "VBLANK on" } else { "VBLANK off" };
+    android_log(za_sys::LogLevel::Info, "TIA", msg);
+                }
+            }
             0x02 => self.wsync = true,
             0x04 => self.nusiz0 = value,
             0x05 => self.nusiz1 = value,
@@ -263,25 +273,23 @@ impl Tia {
     }
 
     fn end_of_scanline(&mut self) {
-    if self.scanline >= VISIBLE_START && (self.scanline - VISIBLE_START) < FB_HEIGHT as u16 {
-        let row = (self.scanline - VISIBLE_START) as usize;
-        // ✅ إذا كان VBLANK نشطاً، املأ السطر بالأسود
-        if self.vblank {
-            let base = row * FB_WIDTH * 4;
-            for i in 0..(FB_WIDTH * 4) {
-                self.framebuffer[base + i] = 0;
+        if self.scanline >= VISIBLE_START && (self.scanline - VISIBLE_START) < FB_HEIGHT as u16 {
+            let row = (self.scanline - VISIBLE_START) as usize;
+            if self.vblank {
+                let base = row * FB_WIDTH * 4;
+                for i in 0..(FB_WIDTH * 4) {
+                    self.framebuffer[base + i] = 0;
+                }
+            } else {
+                self.render_scanline(row);
             }
-        } else {
-            self.render_scanline(row);
         }
-    }
-    self.scanline = self.scanline.wrapping_add(1);
-    if self.scanline >= TOTAL_SCANLINES {
-        self.scanline = 0;
-        // ✅ مسح الإطار بالكامل عند بداية إطار جديد
-        // (يمنع بقايا الإطار السابق)
-        self.framebuffer.fill(0);
-    }
+        self.scanline = self.scanline.wrapping_add(1);
+        if self.scanline >= TOTAL_SCANLINES {
+            self.scanline = 0;
+            // ✅ سجل نهاية الإطار
+            android_log(za_sys::LogLevel::Info, "TIA", "Frame ended");
+        }
     }
 
     fn playfield_bit(&self, x: u32) -> bool {
@@ -308,16 +316,10 @@ impl Tia {
     }
 
     fn render_scanline(&mut self, row: usize) {
-        // ✅ إصلاح VBLANK: إذا كان VBLANK نشطاً، اجعل الخط أسود بالكامل
         if self.vblank {
-            let base = row * FB_WIDTH * 4;
-            for i in 0..(FB_WIDTH * 4) {
-                self.framebuffer[base + i] = 0; // أسود
-            }
-            return; // اخرج من الدالة ولا ترسم أي شيء آخر
+            return;
         }
 
-        // --- بداية الكود الأصلي الخاص بك ---
         let (br, bg, bb) = self.get_color(self.colubk);
         let (pr, pg, pb) = self.get_color(self.colupf);
         let (p0r, p0g, p0b) = self.get_color(self.colup0);

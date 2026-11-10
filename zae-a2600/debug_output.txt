@@ -1,0 +1,93 @@
+   Compiling zae-a2600 v0.1.0 (/public/ZAE-A2600/zae-a2600)
+warning: variable `col_p0_m0` is assigned to, but never used
+   --> zae-a2600/src/tia.rs:332:13
+    |
+332 |         let mut col_p0_m0 = false;
+    |             ^^^^^^^^^^^^^
+    |
+    = note: consider using `_col_p0_m0` instead
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable `col_p0_m1` is assigned to, but never used
+   --> zae-a2600/src/tia.rs:333:13
+    |
+333 |         let mut col_p0_m1 = false;
+    |             ^^^^^^^^^^^^^
+    |
+    = note: consider using `_col_p0_m1` instead
+
+warning: variable `col_p1_m0` is assigned to, but never used
+   --> zae-a2600/src/tia.rs:336:13
+    |
+336 |         let mut col_p1_m0 = false;
+    |             ^^^^^^^^^^^^^
+    |
+    = note: consider using `_col_p1_m0` instead
+
+warning: variable `col_p1_m1` is assigned to, but never used
+   --> zae-a2600/src/tia.rs:337:13
+    |
+337 |         let mut col_p1_m1 = false;
+    |             ^^^^^^^^^^^^^
+    |
+    = note: consider using `_col_p1_m1` instead
+
+warning: value assigned to `col_p0_m0` is never read
+   --> zae-a2600/src/tia.rs:419:33
+    |
+419 |             if is_p0 && is_m0 { col_p0_m0 = true; }
+    |                                 ^^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `col_p0_m1` is never read
+   --> zae-a2600/src/tia.rs:420:33
+    |
+420 |             if is_p0 && is_m1 { col_p0_m1 = true; }
+    |                                 ^^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `col_p1_m0` is never read
+   --> zae-a2600/src/tia.rs:423:33
+    |
+423 |             if is_p1 && is_m0 { col_p1_m0 = true; }
+    |                                 ^^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: value assigned to `col_p1_m1` is never read
+   --> zae-a2600/src/tia.rs:424:33
+    |
+424 |             if is_p1 && is_m1 { col_p1_m1 = true; }
+    |                                 ^^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+
+warning: `zae-a2600` (lib) generated 8 warnings
+    Finished `release` profile [optimized] target(s) in 1.07s
+     Running `/public/ZAE-A2600/target/release/examples/debug`
+PC after reset: 0xF000
+
+=== Phase 1: No input (attract mode) ===
+[f  0] pc=0xF066  BPL $F072 | P0: grp=00 hpos=90 | P1: grp=00 hpos=0 | swcha=FF
+[f 10] pc=0xF066  BPL $F072 | P0: grp=00 hpos=90 | P1: grp=00 hpos=0 | swcha=FF
+[f 20] pc=0xF066  BPL $F072 | P0: grp=00 hpos=90 | P1: grp=00 hpos=0 | swcha=FF
+[f 30] pc=0xF066  BPL $F072 | P0: grp=00 hpos=90 | P1: grp=00 hpos=0 | swcha=FF
+[f 40] pc=0xF066  BPL $F072 | P0: grp=04 hpos=90 | P1: grp=00 hpos=0 | swcha=FF
+[f 50] pc=0xF066  BPL $F072 | P0: grp=00 hpos=90 | P1: grp=00 hpos=0 | swcha=FF
+
+=== Phase 2: RESET pressed ===
+  Reset done
+
+=== Phase 3: LEFT pressed (60 frames) ===
+[f  0] pc=0xF0FF | P0: grp=00 hpos=93 | P1: grp=00 hpos=39 | swcha=BF
+[f 10] pc=0xF074 | P0: grp=00 hpos=87 | P1: grp=00 hpos=33 | swcha=BF
+[f 20] pc=0xF06C | P0: grp=AA hpos=96 | P1: grp=00 hpos=42 | swcha=BF
+[f 30] pc=0xF2A9 | P0: grp=00 hpos=90 | P1: grp=00 hpos=36 | swcha=BF
+[f 40] pc=0xF09B | P0: grp=00 hpos=87 | P1: grp=00 hpos=33 | swcha=BF
+[f 50] pc=0xF0B0 | P0: grp=00 hpos=96 | P1: grp=00 hpos=42 | swcha=BF
+
+=== Final TIA ===
+bg=8 pf=26 pf0=30 pf1=03 pf2=1F
