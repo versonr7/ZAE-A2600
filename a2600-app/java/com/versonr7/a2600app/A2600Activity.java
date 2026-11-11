@@ -7,7 +7,14 @@ import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
 import android.util.Log;
+import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.RelativeLayout;
+import android.widget.GridLayout;
+import android.widget.Space;
+import android.graphics.Color;
 
 public class A2600Activity extends Activity implements SurfaceHolder.Callback {
     private static final String TAG = "A2600";
@@ -43,13 +50,117 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
         super.onCreate(savedInstanceState);
         Log.i(TAG, "Activity onCreate");
 
+        // ✅ 1. إنشاء الحاوية الرئيسية (FrameLayout)
+        FrameLayout rootLayout = new FrameLayout(this);
+
+        // ✅ 2. إضافة شاشة اللعبة (SurfaceView)
         surfaceView = new SurfaceView(this);
         surfaceView.getHolder().addCallback(this);
         surfaceView.setFocusableInTouchMode(true);
         surfaceView.requestFocus();
-        setContentView(surfaceView);
+        rootLayout.addView(surfaceView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+
+        // ✅ 3. إضافة أزرار التحكم الشفافة فوق الشاشة
+        View controlsOverlay = createControlsOverlay();
+        rootLayout.addView(controlsOverlay, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+
+        setContentView(rootLayout);
         nativeOnCreate();
     }
+
+    // ============ دالة إنشاء أزرار التحكم الشفافة ============
+    private View createControlsOverlay() {
+        RelativeLayout overlay = new RelativeLayout(this);
+        overlay.setLayoutParams(new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.MATCH_PARENT,
+                RelativeLayout.LayoutParams.MATCH_PARENT
+        ));
+
+        // إنشاء الأزرار
+        Button btnUp = createTransparentButton("▲");
+        Button btnDown = createTransparentButton("▼");
+        Button btnLeft = createTransparentButton("◀");
+        Button btnRight = createTransparentButton("▶");
+        Button btnFire = createTransparentButton("🔥");
+
+        // --- ترتيب D-Pad في الزاوية اليسرى السفلى ---
+        GridLayout dpadLayout = new GridLayout(this);
+        dpadLayout.setColumnCount(3);
+        dpadLayout.setRowCount(3);
+        RelativeLayout.LayoutParams dpadParams = new RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT
+        );
+        dpadParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        dpadParams.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
+        dpadParams.setMargins(80, 50, 0, 80); // مسافة من الحافة
+        dpadLayout.setLayoutParams(dpadParams);
+
+        // إضافة الأزرار إلى GridLayout مع فراغات
+        dpadLayout.addView(new Space(this), new GridLayout.LayoutParams(GridLayout.spec(0), GridLayout.spec(0)));
+        dpadLayout.addView(btnUp, createGridParams(0, 1));
+        dpadLayout.addView(new Space(this), new GridLayout.LayoutParams(GridLayout.spec(0), GridLayout.spec(2)));
+        dpadLayout.addView(btnLeft, createGridParams(1, 0));
+        dpadLayout.addView(new Space(this), new GridLayout.LayoutParams(GridLayout.spec(1), GridLayout.spec(1)));
+        dpadLayout.addView(btnRight, createGridParams(1, 2));
+        dpadLayout.addView(new Space(this), new GridLayout.LayoutParams(GridLayout.spec(2), GridLayout.spec(0)));
+        dpadLayout.addView(btnDown, createGridParams(2, 1));
+        dpadLayout.addView(new Space(this), new GridLayout.LayoutParams(GridLayout.spec(2), GridLayout.spec(2)));
+
+        // --- زر الإطلاق في الزاوية اليمنى السفلى ---
+        RelativeLayout.LayoutParams fireParams = new RelativeLayout.LayoutParams(160, 160);
+        fireParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        fireParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
+        fireParams.setMargins(0, 0, 100, 100);
+        btnFire.setLayoutParams(fireParams);
+
+        overlay.addView(dpadLayout);
+        overlay.addView(btnFire);
+
+        // ربط الأزرار بالتحكم
+        btnUp.setOnTouchListener((v, event) -> { handleTouch(event, 1, 0, 0, 0, 0); return true; });
+        btnDown.setOnTouchListener((v, event) -> { handleTouch(event, 0, 1, 0, 0, 0); return true; });
+        btnLeft.setOnTouchListener((v, event) -> { handleTouch(event, 0, 0, 1, 0, 0); return true; });
+        btnRight.setOnTouchListener((v, event) -> { handleTouch(event, 0, 0, 0, 1, 0); return true; });
+        btnFire.setOnTouchListener((v, event) -> { handleTouch(event, 0, 0, 0, 0, 1); return true; });
+
+        return overlay;
+    }
+
+    // دالة مساعدة لإنشاء زر شفاف
+    private Button createTransparentButton(String text) {
+        Button btn = new Button(this);
+        btn.setText(text);
+        btn.setTextSize(24);
+        btn.getBackground().setAlpha(90); // شفافية
+        btn.setTextColor(Color.WHITE);
+        btn.setPadding(0, 0, 0, 0);
+        return btn;
+    }
+
+    // دالة مساعدة لتحديد حجم الأزرار في الشبكة
+    private GridLayout.LayoutParams createGridParams(int row, int col) {
+        GridLayout.LayoutParams params = new GridLayout.LayoutParams(GridLayout.spec(row), GridLayout.spec(col));
+        params.width = 110;
+        params.height = 110;
+        return params;
+    }
+
+    // دالة مساعدة لمعالجة ضغط الأزرار
+    private void handleTouch(MotionEvent event, int up, int down, int left, int right, int fire) {
+        if (event.getAction() == MotionEvent.ACTION_DOWN) {
+            nativeOnJoystick(up, down, left, right, fire);
+        } else if (event.getAction() == MotionEvent.ACTION_UP) {
+            nativeOnJoystick(0, 0, 0, 0, 0);
+        }
+    }
+
+    // ============ دورة حياة التطبيق ============
 
     @Override
     protected void onPause() {
@@ -70,7 +181,6 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
     protected void onResume() {
         super.onResume();
         nativeOnResume();
-        // ✅ إزالة بدء الخيط من هنا، لأن surfaceCreated سيتكفل به
     }
 
     @Override
@@ -80,7 +190,7 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
         nativeOnDestroy();
     }
 
-    // ============ PS4 Controller Support ============
+    // ============ دعم يد التحكم PS4 ============
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
@@ -119,7 +229,6 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
 
             case KeyEvent.KEYCODE_BUTTON_START:
             case KeyEvent.KEYCODE_BUTTON_SELECT:
-                // ✅ START/SELECT يعملان كـ Game Reset في Atari 2600
                 if (down) {
                     nativeOnReset();
                 }
@@ -148,7 +257,7 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
         return super.onGenericMotionEvent(event);
     }
 
-    // ============ Touch Support (مع دعم اللمس المتعدد) ============
+    // ============ دعم اللمس (في حال لمس الشاشة العادية) ============
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
@@ -156,7 +265,6 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
         int w = surfaceView.getWidth();
         int h = surfaceView.getHeight();
 
-        // إعادة تعيين الحالة عند رفع الإصبع أو الإلغاء
         if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
             joyUp = joyDown = joyLeft = joyRight = joyFire = false;
             resetHeld = false;
@@ -164,7 +272,6 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
             return true;
         }
 
-        // تحليل جميع المؤشرات النشطة
         boolean up = false, down = false, left = false, right = false, fire = false, reset = false;
         int pointerCount = event.getPointerCount();
 
@@ -186,13 +293,11 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
             }
         }
 
-        // إرسال التغييرات فقط إذا تغيرت الحالة
         if (up != joyUp || down != joyDown || left != joyLeft || right != joyRight || fire != joyFire) {
             joyUp = up; joyDown = down; joyLeft = left; joyRight = right; joyFire = fire;
             nativeOnJoystick(up ? 1 : 0, down ? 1 : 0, left ? 1 : 0, right ? 1 : 0, fire ? 1 : 0);
         }
 
-        // معالجة RESET (يُرسل مرة واحدة عند الضغط)
         if (reset && !resetHeld) {
             resetHeld = true;
             nativeOnReset();
@@ -203,7 +308,7 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
         return true;
     }
 
-    // ============ SurfaceHolder.Callback ============
+    // ============ دورة حياة Surface ============
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
@@ -235,10 +340,10 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
             }
             renderThread = null;
         }
-        nativeOnSurfaceDestroyed(); // ✅ إضافة استدعاء
+        nativeOnSurfaceDestroyed();
     }
 
-    // ============ Render Loop ============
+    // ============ حلقة الرسم ============
 
     private void renderLoop() {
         while (running) {

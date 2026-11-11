@@ -201,6 +201,8 @@ pub struct Tia {
     pub cxm1fb: u8,
     pub cxblpf: u8,
     pub cxppmm: u8,
+    pub hmove_delay: u8,    // تأخير بدء HMOVE
+    pub hmove_ripple: i8,   // عداد التمشيط (15 -> -1)
 }
 
 impl Tia {
@@ -244,6 +246,8 @@ impl Tia {
             cxm1fb: 0,
             cxblpf: 0,
             cxppmm: 0,
+            hmove_delay: 0,
+            hmove_ripple: 0,
         }
     }
 
@@ -330,12 +334,9 @@ impl Tia {
                 };
             }
             0x2A => {
-                let d = self.hmove_pending as i16;
-                self.hpos_p0 = ((self.hpos_p0 as i16 + d).clamp(0, 159)) as u8;
-                self.hpos_p1 = ((self.hpos_p1 as i16 + d).clamp(0, 159)) as u8;
-                self.hpos_m0 = ((self.hpos_m0 as i16 + d).clamp(0, 159)) as u8;
-                self.hpos_m1 = ((self.hpos_m1 as i16 + d).clamp(0, 159)) as u8;
-                self.hpos_bl = ((self.hpos_bl as i16 + d).clamp(0, 159)) as u8;
+    // ✅ HMOVE لا يطبق فوراً. هناك تأخير (6 دورات تقريباً)
+    self.hmove_delay = 6; 
+    // لا نغير hpos هنا
             }
             0x2B => {
                 self.hmove_pending = 0;
@@ -345,17 +346,48 @@ impl Tia {
     }
 
     pub fn tick(&mut self, cycles: u32) {
-        let mut remaining = cycles;
-        while remaining > 0 {
-            let space_left = SCANLINE_CYCLES - self.cycle_in_scanline;
-            let consume = remaining.min(space_left);
-            self.cycle_in_scanline += consume;
-            remaining -= consume;
-            if self.cycle_in_scanline >= SCANLINE_CYCLES {
-                self.cycle_in_scanline = 0;
-                self.end_of_scanline();
+    let mut remaining = cycles;
+    while remaining > 0 {
+        // ✅ 1. معالجة تأخير HMOVE
+        if self.hmove_delay > 0 {
+            self.hmove_delay -= 1;
+            if self.hmove_delay == 0 {
+                self.hmove_ripple = 15;
             }
         }
+        
+        // ✅ 2. معالجة التمشيط (Ripple)
+        if self.hmove_ripple > 0 {
+            let d = self.hmove_pending as i16;
+            if d > 0 {
+                self.hpos_p0 = self.hpos_p0.saturating_add(1);
+                self.hpos_p1 = self.hpos_p1.saturating_add(1);
+                self.hpos_m0 = self.hpos_m0.saturating_add(1);
+                self.hpos_m1 = self.hpos_m1.saturating_add(1);
+                self.hpos_bl = self.hpos_bl.saturating_add(1);
+            } else if d < 0 {
+                self.hpos_p0 = self.hpos_p0.saturating_sub(1);
+                self.hpos_p1 = self.hpos_p1.saturating_sub(1);
+                self.hpos_m0 = self.hpos_m0.saturating_sub(1);
+                self.hpos_m1 = self.hpos_m1.saturating_sub(1);
+                self.hpos_bl = self.hpos_bl.saturating_sub(1);
+            }
+            self.hmove_ripple -= 1;
+            if self.hmove_ripple == 0 {
+                self.hmove_pending = 0;
+            }
+        }
+
+        // (باقي كود tick القديم الخاص بالمسح الضوئي)
+        let space_left = SCANLINE_CYCLES - self.cycle_in_scanline;
+        let consume = remaining.min(space_left);
+        self.cycle_in_scanline += consume;
+        remaining -= consume;
+        if self.cycle_in_scanline >= SCANLINE_CYCLES {
+            self.cycle_in_scanline = 0;
+            self.end_of_scanline();
+        }
+    }
     }
 
     fn end_of_scanline(&mut self) {
