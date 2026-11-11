@@ -247,11 +247,6 @@ impl Tia {
             }
             _ => {}
         }
-
-        if !self.vblank && self.scanline >= VISIBLE_START && (self.scanline - VISIBLE_START) < FB_HEIGHT as u16 {
-            let row = (self.scanline - VISIBLE_START) as usize;
-            self.render_scanline(row);
-        }
     }
 
     pub fn tick(&mut self, cycles: u32) {

@@ -200,10 +200,14 @@ impl Cpu {
 
             // إذا كان WSYNC مفعّلًا، أضف دورات حتى نهاية خط المسح
             if mem.tia.wsync {
-                let remaining = 76 - (mem.tia.cycle_in_scanline % 76);
-                mem.tia.tick(remaining);
-                total += remaining;
-                mem.tia.wsync = false;
+    let remaining = if mem.tia.cycle_in_scanline == 0 {
+        76
+    } else {
+        76 - (mem.tia.cycle_in_scanline % 76)
+    };
+    mem.tia.tick(remaining);
+    total_cycles += remaining;
+    mem.tia.wsync = false;
             }
         }
         total
