@@ -1,5 +1,5 @@
 use za_math::Color;
-use za_sys::android_log; // لاستخدام السجلات
+use za_sys::android_log;
 
 pub const NTSC_PALETTE: [(u8, u8, u8); 128] = [
     (0x00, 0x00, 0x00), (0x40, 0x40, 0x40), (0x6C, 0x6C, 0x6C), (0x90, 0x90, 0x90),
@@ -152,41 +152,28 @@ impl Tia {
         }
     }
 
-    fn playfield_bit(&self, x: u32) -> bool {
-    let is_right_half = x >= 80;
-    let reflect = (self.ctrlpf & 0x01) != 0;
-
-    // 1. حساب الإحداثي داخل النصف الأيسر من الشاشة (من 0 إلى 79)
-    let col = if is_right_half && reflect {
-        159 - x // انعكاس للنصف الأيمن
-    } else if is_right_half {
-        x - 80 // تكرار عادي للنصف الأيمن
-    } else {
-        x      // النصف الأيسر
-    };
-
-    // 2. تقسيم الإحداثي إلى مجموعات من 4 بكسل (لأن كل بت يغطي 4 بكسل)
-    let bit_index = col / 4; // سيكون من 0 إلى 19
-
-    // 3. قراءة البتات الصحيحة بناءً على تصميم العتاد
-    match bit_index {
-        // الأعمدة 0-3: تأتي من البتات العلوية (4-7) في PF0، ولكن بترتيب معكوس (من اليمين لليسار)
-        0..=3 => {
-            let bit_to_check = 3 - bit_index; // 3, 2, 1, 0
-            (self.pf0 >> (4 + bit_to_check)) & 1 != 0
+    pub fn read_register(&self, addr: u16) -> u8 {
+        match addr {
+            TIA_VBLANK => {
+                if self.vblank {
+                    0x80
+                } else {
+                    0x00
+                }
+            }
+            TIA_COLUBK => self.colubk,
+            0x30 => self.cxm0p,
+            0x31 => self.cxm1p,
+            0x32 => self.cxp0fb,
+            0x33 => self.cxp1fb,
+            0x34 => self.cxm0fb,
+            0x35 => self.cxm1fb,
+            0x36 => self.cxblpf,
+            0x37 => self.cxppmm,
+            0x3C => self.inpt4,
+            0x3D => 0x80,
+            _ => 0,
         }
-        // الأعمدة 4-11: تأتي من PF1 بالترتيب الطبيعي (من اليسار لليمين)
-        4..=11 => {
-            let bit_to_check = bit_index - 4; // 0, 1, ..., 7
-            (self.pf1 >> bit_to_check) & 1 != 0
-        }
-        // الأعمدة 12-19: تأتي من PF2 بترتيب معكوس (من اليمين لليسار)
-        12..=19 => {
-            let bit_to_check = 7 - (bit_index - 12); // 7, 6, ..., 0
-            (self.pf2 >> bit_to_check) & 1 != 0
-        }
-        _ => false,
-    }
     }
 
     pub fn clear_collision(&mut self, addr: u16) {
@@ -211,17 +198,9 @@ impl Tia {
                 if self.vsync && !was {
                     self.scanline = 0;
                     self.cycle_in_scanline = 0;
-                    android_log(za_sys::LogLevel::Info, "TIA", "VSYNC triggered: scanline reset");
                 }
             }
-            0x01 => {
-                let was = self.vblank;
-                self.vblank = value & 0x02 != 0;
-                if self.vblank != was {
-                    let msg = if self.vblank { "VBLANK on" } else { "VBLANK off" };
-                    android_log(za_sys::LogLevel::Info, "TIA", msg);
-                }
-            }
+            0x01 => self.vblank = value & 0x02 != 0,
             0x02 => self.wsync = true,
             0x04 => self.nusiz0 = value,
             0x05 => self.nusiz1 = value,
@@ -232,21 +211,9 @@ impl Tia {
             0x0A => self.ctrlpf = value,
             0x0B => self.refp0 = value & 0x08 != 0,
             0x0C => self.refp1 = value & 0x08 != 0,
-            0x0D => {
-    self.pf0 = value;
-    let msg = if value != 0 { "PF0 written" } else { "PF0 cleared" };
-    android_log(za_sys::LogLevel::Debug, "TIA", msg);
-}
-0x0E => {
-    self.pf1 = value;
-    let msg = if value != 0 { "PF1 written" } else { "PF1 cleared" };
-    android_log(za_sys::LogLevel::Debug, "TIA", msg);
-}
-0x0F => {
-    self.pf2 = value;
-    let msg = if value != 0 { "PF2 written" } else { "PF2 cleared" };
-    android_log(za_sys::LogLevel::Debug, "TIA", msg);
-}
+            0x0D => self.pf0 = value,
+            0x0E => self.pf1 = value,
+            0x0F => self.pf2 = value,
             0x10 => self.hpos_p0 = hpos_from_cycle(self.cycle_in_scanline),
             0x11 => self.hpos_p1 = hpos_from_cycle(self.cycle_in_scanline),
             0x12 => self.hpos_m0 = hpos_from_cycle(self.cycle_in_scanline),
@@ -268,13 +235,12 @@ impl Tia {
                 };
             }
             0x2A => {
-    // ✅ تعطيل HMOVE مؤقتاً لاختبار الاهتزاز
-    // let d = self.hmove_pending as i16;
-    // self.hpos_p0 = ((self.hpos_p0 as i16 + d).clamp(0, 159)) as u8;
-    // self.hpos_p1 = ((self.hpos_p1 as i16 + d).clamp(0, 159)) as u8;
-    // self.hpos_m0 = ((self.hpos_m0 as i16 + d).clamp(0, 159)) as u8;
-    // self.hpos_m1 = ((self.hpos_m1 as i16 + d).clamp(0, 159)) as u8;
-    // self.hpos_bl = ((self.hpos_bl as i16 + d).clamp(0, 159)) as u8;
+                let d = self.hmove_pending as i16;
+                self.hpos_p0 = ((self.hpos_p0 as i16 + d).clamp(0, 159)) as u8;
+                self.hpos_p1 = ((self.hpos_p1 as i16 + d).clamp(0, 159)) as u8;
+                self.hpos_m0 = ((self.hpos_m0 as i16 + d).clamp(0, 159)) as u8;
+                self.hpos_m1 = ((self.hpos_m1 as i16 + d).clamp(0, 159)) as u8;
+                self.hpos_bl = ((self.hpos_bl as i16 + d).clamp(0, 159)) as u8;
             }
             0x2B => {
                 self.hmove_pending = 0;
@@ -282,7 +248,6 @@ impl Tia {
             _ => {}
         }
 
-        // ✅ التعديل الجديد: إعادة رسم السطر الحالي فوراً عند تغيير أي سجل
         if !self.vblank && self.scanline >= VISIBLE_START && (self.scanline - VISIBLE_START) < FB_HEIGHT as u16 {
             let row = (self.scanline - VISIBLE_START) as usize;
             self.render_scanline(row);
@@ -318,36 +283,38 @@ impl Tia {
         self.scanline = self.scanline.wrapping_add(1);
         if self.scanline >= TOTAL_SCANLINES {
             self.scanline = 0;
-            android_log(za_sys::LogLevel::Info, "TIA", "Frame ended");
         }
     }
 
     fn playfield_bit(&self, x: u32) -> bool {
-    // 1. تحديد ما إذا كنا في النصف الأيمن
-    let is_right_half = x >= 80;
-    let reflect = (self.ctrlpf & 0x01) != 0;
+        let is_right_half = x >= 80;
+        let reflect = (self.ctrlpf & 0x01) != 0;
 
-    // 2. إذا كنا في النصف الأيمن وكان الانعكاس مفعلًا، نعكس الإحداثي
-    let col = if is_right_half && reflect {
-        159 - x
-    } else if is_right_half {
-        x - 80
-    } else {
-        x
-    };
+        let col = if is_right_half && reflect {
+            159 - x
+        } else if is_right_half {
+            x - 80
+        } else {
+            x
+        };
 
-    // 3. تحديد البت المقابل في سجلات PF
-    let bit_index = col / 4;
+        let bit_index = col / 4;
 
-    match bit_index {
-        // PF0: البتات 4-7، بترتيب معكوس (7,6,5,4) من اليسار لليمين
-        0..=3 => (self.pf0 >> (4 + (3 - bit_index))) & 1 != 0,
-        // PF1: البتات 0-7، بترتيب طبيعي (0,1,2,3,4,5,6,7)
-        4..=11 => (self.pf1 >> (bit_index - 4)) & 1 != 0,
-        // PF2: البتات 0-7، بترتيب معكوس (7,6,5,4,3,2,1,0)
-        12..=19 => (self.pf2 >> (7 - (bit_index - 12))) & 1 != 0,
-        _ => false,
-    }
+        match bit_index {
+            0..=3 => {
+                let bit_to_check = 3 - bit_index;
+                (self.pf0 >> (4 + bit_to_check)) & 1 != 0
+            }
+            4..=11 => {
+                let bit_to_check = bit_index - 4;
+                (self.pf1 >> bit_to_check) & 1 != 0
+            }
+            12..=19 => {
+                let bit_to_check = 7 - (bit_index - 12);
+                (self.pf2 >> bit_to_check) & 1 != 0
+            }
+            _ => false,
+        }
     }
 
     fn get_color(&self, value: u8) -> (u8, u8, u8) {
@@ -362,29 +329,12 @@ impl Tia {
         }
 
         let (br, bg, bb) = self.get_color(self.colubk);
-        let score_mode = (self.ctrlpf & 0x04) != 0;
-let (pr, pg, pb) = if score_mode { 
-    self.get_color(self.colup0) 
-} else { 
-    self.get_color(self.colupf) 
-};
+        let (pr, pg, pb) = self.get_color(self.colupf);
         let (p0r, p0g, p0b) = self.get_color(self.colup0);
         let (p1r, p1g, p1b) = self.get_color(self.colup1);
         let base = row * FB_WIDTH * 4;
 
-        let mut col_p0_p1 = false;
-        let mut col_p0_pf = false;
-        let mut col_p0_bl = false;
-        let mut col_p0_m0 = false;
-        let mut col_p0_m1 = false;
-        let mut col_p1_pf = false;
-        let mut col_p1_bl = false;
-        let mut col_p1_m0 = false;
-        let mut col_p1_m1 = false;
-        let mut col_m0_p0 = false;
-        let mut col_m1_p0 = false;
-        let mut col_m0_m1 = false;
-        let mut col_bl_pf = false;
+        let score_mode = (self.ctrlpf & 0x02) != 0;
 
         for x in 0..FB_WIDTH {
             let mut r = br;
@@ -392,22 +342,21 @@ let (pr, pg, pb) = if score_mode {
             let mut b = bb;
 
             let is_pf = self.playfield_bit(x as u32);
-if is_pf {
-    if score_mode {
-        // في وضع Score Mode، النصف الأيسر يأخذ لون اللاعب 0، والأيمن يأخذ لون اللاعب 1
-        if x < FB_WIDTH / 2 {
-            let (c0r, c0g, c0b) = self.get_color(self.colup0);
-            r = c0r; g = c0g; b = c0b;
-        } else {
-            let (c1r, c1g, c1b) = self.get_color(self.colup1);
-            r = c1r; g = c1g; b = c1b;
-        }
-    } else {
-        r = pr;
-        g = pg;
-        b = pb;
-    }
-}
+            if is_pf {
+                if score_mode {
+                    if x < FB_WIDTH / 2 {
+                        let (c0r, c0g, c0b) = self.get_color(self.colup0);
+                        r = c0r; g = c0g; b = c0b;
+                    } else {
+                        let (c1r, c1g, c1b) = self.get_color(self.colup1);
+                        r = c1r; g = c1g; b = c1b;
+                    }
+                } else {
+                    r = pr;
+                    g = pg;
+                    b = pb;
+                }
+            }
 
             let mut is_p0 = false;
             if self.grp0 != 0 {
@@ -470,19 +419,16 @@ if is_pf {
                 }
             }
 
-            if is_p0 && is_p1 { col_p0_p1 = true; }
-            if is_p0 && is_pf { col_p0_pf = true; }
-            if is_p0 && is_bl { col_p0_bl = true; }
-            if is_p0 && is_m0 { col_p0_m0 = true; }
-            if is_p0 && is_m1 { col_p0_m1 = true; }
-            if is_p1 && is_pf { col_p1_pf = true; }
-            if is_p1 && is_bl { col_p1_bl = true; }
-            if is_p1 && is_m0 { col_p1_m0 = true; }
-            if is_p1 && is_m1 { col_p1_m1 = true; }
-            if is_m0 && is_p0 { col_m0_p0 = true; }
-            if is_m1 && is_p0 { col_m1_p0 = true; }
-            if is_m0 && is_m1 { col_m0_m1 = true; }
-            if is_bl && is_pf { col_bl_pf = true; }
+            // تصادمات
+            if is_p0 && is_p1 { self.cxppmm |= 0x80; }
+            if is_p0 && is_pf { self.cxp0fb |= 0x80; }
+            if is_p0 && is_bl { self.cxp0fb |= 0x40; }
+            if is_p1 && is_pf { self.cxp1fb |= 0x80; }
+            if is_p1 && is_bl { self.cxp1fb |= 0x40; }
+            if is_m0 && is_m1 { self.cxppmm |= 0x40; }
+            if is_m0 && is_p1 { self.cxm0p |= 0x80; }
+            if is_m1 && is_p0 { self.cxm1p |= 0x80; }
+            if is_bl && is_pf { self.cxblpf |= 0x80; }
 
             let idx = base + x * 4;
             self.framebuffer[idx] = r;
@@ -490,16 +436,6 @@ if is_pf {
             self.framebuffer[idx + 2] = b;
             self.framebuffer[idx + 3] = 255;
         }
-
-        if col_p0_p1 { self.cxppmm |= 0x80; }
-        if col_m0_m1 { self.cxppmm |= 0x40; }
-        if col_m0_p0 { self.cxm0p |= 0x80; }
-        if col_m1_p0 { self.cxm1p |= 0x80; }
-        if col_p0_pf { self.cxp0fb |= 0x80; }
-        if col_p0_bl { self.cxp0fb |= 0x40; }
-        if col_p1_pf { self.cxp1fb |= 0x80; }
-        if col_p1_bl { self.cxp1fb |= 0x40; }
-        if col_bl_pf { self.cxblpf |= 0x80; }
     }
 
     pub fn background_color(&self) -> Color {
