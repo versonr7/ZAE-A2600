@@ -24,10 +24,9 @@ impl Cpu {
         }
     }
 
-    // أعلام الحالة
     const C: u8 = 0x01;
     const Z: u8 = 0x02;
-    const I: u8 = 0x04; // إن احتجت
+    const I: u8 = 0x04;
     const D: u8 = 0x08;
     const N: u8 = 0x80;
     const V: u8 = 0x40;
@@ -65,7 +64,7 @@ impl Cpu {
         );
         self.a = (result & 0xFF) as u8;
         self.set_z_n(self.a);
-        0 // القيمة الحقيقية للدورات تحدد في الذراع
+        0
     }
 
     fn sbc(&mut self, value: u8) {
@@ -100,7 +99,6 @@ impl Cpu {
         (hi << 8) | lo
     }
 
-    // أنماط عنونة
     fn immediate(&mut self, mem: &mut Memory) -> u8 {
         let val = self.read_byte(mem, self.pc);
         self.pc = self.pc.wrapping_add(1);
@@ -137,6 +135,7 @@ impl Cpu {
         let addr = (zp.wrapping_add(self.x as u16) & 0xFF) as u16;
         self.read_word(mem, addr)
     }
+
     fn zero_page_y(&mut self, mem: &mut Memory) -> u16 {
         let base = self.read_byte(mem, self.pc) as u16;
         self.pc = self.pc.wrapping_add(1);
@@ -171,25 +170,28 @@ impl Cpu {
     }
 
     pub fn step(&mut self, mem: &mut Memory) -> u32 {
-    let opcode = self.read_byte(mem, self.pc);
-    self.pc = self.pc.wrapping_add(1);
-    let base_cycles = self.execute(opcode, mem);
+        let opcode = self.read_byte(mem, self.pc);
+        self.pc = self.pc.wrapping_add(1);
+        let base_cycles = self.execute(opcode, mem);
 
-    mem.tia.tick(base_cycles);
-    mem.tick_riot(base_cycles); // ✅ هذا يكفي
+        mem.tia.tick(base_cycles);
+        mem.tick_riot(base_cycles);
 
-    let mut total_cycles = base_cycles;
+        let mut total_cycles = base_cycles;
 
-    if mem.tia.wsync {
-        let remaining = 76 - (mem.tia.cycle_in_scanline % 76);
-        mem.tia.tick(remaining);
-        // ❌ احذف السطر المكرر: mem.tick_riot(remaining);
-        total_cycles += remaining;
-        mem.tia.wsync = false;
-    }
+        if mem.tia.wsync {
+            let remaining = if mem.tia.cycle_in_scanline == 0 {
+                76
+            } else {
+                76 - (mem.tia.cycle_in_scanline % 76)
+            };
+            mem.tia.tick(remaining);
+            total_cycles += remaining;
+            mem.tia.wsync = false;
+        }
 
-    self.cycles += total_cycles;
-    total_cycles
+        self.cycles += total_cycles;
+        total_cycles
     }
 
     pub fn run_for_cycles(&mut self, mem: &mut Memory, target_cycles: u32) -> u32 {
@@ -197,25 +199,13 @@ impl Cpu {
         while total < target_cycles {
             let cycles = self.step(mem);
             total += cycles;
-
-            // إذا كان WSYNC مفعّلًا، أضف دورات حتى نهاية خط المسح
-            if mem.tia.wsync {
-    let remaining = if mem.tia.cycle_in_scanline == 0 {
-        76
-    } else {
-        76 - (mem.tia.cycle_in_scanline % 76)
-    };
-    mem.tia.tick(remaining);
-    total_cycles += remaining;
-    mem.tia.wsync = false;
-            }
+            // WSYNC is handled inside step()
         }
         total
     }
 
     pub fn run_frame(&mut self, mem: &mut Memory) -> u32 {
-    // ✅ إطار NTSC واحد = 262 سطراً × 76 دورة = 19912 دورة
-    self.run_for_cycles(mem, 19912)
+        self.run_for_cycles(mem, 19912)
     }
 
     pub fn execute(&mut self, opcode: u8, mem: &mut Memory) -> u32 {
@@ -268,7 +258,6 @@ impl Cpu {
                 self.set_z_n(v);
                 5
             }
-
             0x85 => {
                 let a = self.zero_page(mem);
                 self.write_byte(mem, a, self.a);
@@ -299,7 +288,6 @@ impl Cpu {
                 self.write_byte(mem, a, self.a);
                 6
             }
-
             0x4C => {
                 let a = self.absolute(mem);
                 self.pc = a;
@@ -342,7 +330,6 @@ impl Cpu {
                 self.set_flag(Self::C, true);
                 2
             }
-            // INX / INY / DEX / DEY
             0xE8 => {
                 self.x = self.x.wrapping_add(1);
                 self.set_z_n(self.x);
@@ -363,8 +350,6 @@ impl Cpu {
                 self.set_z_n(self.y);
                 2
             }
-
-            // CMP (Immediate / ZeroPage / Absolute)
             0xC9 => {
                 let v = self.immediate(mem);
                 self.compare(self.a, v);
@@ -382,8 +367,6 @@ impl Cpu {
                 self.compare(self.a, v);
                 4
             }
-
-            // CPX (Immediate / ZeroPage)
             0xE0 => {
                 let v = self.immediate(mem);
                 self.compare(self.x, v);
@@ -395,8 +378,6 @@ impl Cpu {
                 self.compare(self.x, v);
                 3
             }
-
-            // CPY (Immediate / ZeroPage)
             0xC0 => {
                 let v = self.immediate(mem);
                 self.compare(self.y, v);
@@ -408,8 +389,6 @@ impl Cpu {
                 self.compare(self.y, v);
                 3
             }
-
-            // AND (Immediate / ZeroPage / Absolute)
             0x29 => {
                 let v = self.immediate(mem);
                 self.a &= v;
@@ -430,8 +409,6 @@ impl Cpu {
                 self.set_z_n(self.a);
                 4
             }
-
-            // ORA (Immediate / ZeroPage / Absolute)
             0x09 => {
                 let v = self.immediate(mem);
                 self.a |= v;
@@ -452,8 +429,6 @@ impl Cpu {
                 self.set_z_n(self.a);
                 4
             }
-
-            // EOR (Immediate / ZeroPage / Absolute)
             0x49 => {
                 let v = self.immediate(mem);
                 self.a ^= v;
@@ -474,8 +449,6 @@ impl Cpu {
                 self.set_z_n(self.a);
                 4
             }
-
-            // INC / DEC (ZeroPage / Absolute)
             0xE6 => {
                 let a = self.zero_page(mem);
                 let v = self.read_byte(mem, a).wrapping_add(1);
@@ -504,12 +477,9 @@ impl Cpu {
                 self.set_z_n(v);
                 6
             }
-
-            // JMP (indirect) — opcode 0x6C
             0x6C => {
                 let addr_ptr = self.absolute(mem);
                 let lo = self.read_byte(mem, addr_ptr) as u16;
-                // قاعدة 6502: إذا كان LSB = 0xFF، نقرأ MSB من نفس الصفحة
                 let hi_addr = if lo == 0x00FF {
                     addr_ptr & 0xFF00
                 } else {
@@ -519,7 +489,6 @@ impl Cpu {
                 self.pc = (hi << 8) | lo;
                 5
             }
-            // TAX, TAY, TXA, TYA, TSX, TXS
             0xAA => {
                 self.x = self.a;
                 self.set_z_n(self.x);
@@ -549,8 +518,6 @@ impl Cpu {
                 self.sp = self.x;
                 2
             }
-
-            // PHA, PLA, PHP, PLP
             0x48 => {
                 self.push_byte(mem, self.a);
                 3
@@ -561,7 +528,6 @@ impl Cpu {
                 4
             }
             0x08 => {
-                // PHP يدفع الحالة مع ضبط B flag (bit 4)
                 self.push_byte(mem, self.status | 0x10);
                 3
             }
@@ -569,7 +535,6 @@ impl Cpu {
                 self.status = self.pull_byte(mem);
                 4
             }
-            // ADC (Immediate / ZeroPage / ZeroPageX / Absolute / AbsoluteX / AbsoluteY / IndirectX / IndirectY)
             0x69 => {
                 let v = self.immediate(mem);
                 let cycles = self.adc(v);
@@ -617,8 +582,6 @@ impl Cpu {
                 self.adc(v);
                 5
             }
-
-            // SBC (Immediate / ZeroPage / ZeroPageX / Absolute / AbsoluteX / AbsoluteY / IndirectX / IndirectY)
             0xE9 => {
                 let v = self.immediate(mem);
                 self.sbc(v);
@@ -666,8 +629,6 @@ impl Cpu {
                 self.sbc(v);
                 5
             }
-
-            // BIT (ZeroPage / Absolute)
             0x24 => {
                 let a = self.zero_page(mem);
                 let v = self.read_byte(mem, a);
@@ -680,8 +641,6 @@ impl Cpu {
                 self.bit(v);
                 4
             }
-
-            // Branches
             0x10 => {
                 let off = self.fetch_relative(mem);
                 if !self.get_flag(Self::N) {
@@ -736,7 +695,6 @@ impl Cpu {
                     3
                 }
             }
-            // LDX (Immediate / ZeroPage / ZeroPageY / Absolute / AbsoluteY)
             0xA2 => {
                 let v = self.immediate(mem);
                 self.x = v;
@@ -771,8 +729,6 @@ impl Cpu {
                 self.set_z_n(v);
                 4
             }
-
-            // LDY (Immediate / ZeroPage / ZeroPageX / Absolute / AbsoluteX)
             0xA0 => {
                 let v = self.immediate(mem);
                 self.y = v;
@@ -807,8 +763,6 @@ impl Cpu {
                 self.set_z_n(v);
                 4
             }
-
-            // STX (ZeroPage / ZeroPageY / Absolute)
             0x86 => {
                 let a = self.zero_page(mem);
                 self.write_byte(mem, a, self.x);
@@ -824,8 +778,6 @@ impl Cpu {
                 self.write_byte(mem, a, self.x);
                 4
             }
-
-            // STY (ZeroPage / ZeroPageX / Absolute)
             0x84 => {
                 let a = self.zero_page(mem);
                 self.write_byte(mem, a, self.y);
@@ -841,8 +793,6 @@ impl Cpu {
                 self.write_byte(mem, a, self.y);
                 4
             }
-
-            // INC / DEC (ZeroPageX / AbsoluteX)
             0xF6 => {
                 let a = self.zero_page_x(mem);
                 let v = self.read_byte(mem, a).wrapping_add(1);
@@ -871,8 +821,6 @@ impl Cpu {
                 self.set_z_n(v);
                 7
             }
-
-            // ASL (Accumulator / ZeroPage / ZeroPageX / Absolute / AbsoluteX)
             0x0A => {
                 self.set_flag(Self::C, self.a & 0x80 != 0);
                 self.a <<= 1;
@@ -915,8 +863,6 @@ impl Cpu {
                 self.set_z_n(r);
                 7
             }
-
-            // LSR (Accumulator / ZeroPage / ZeroPageX / Absolute / AbsoluteX)
             0x4A => {
                 self.set_flag(Self::C, self.a & 1 != 0);
                 self.a >>= 1;
@@ -959,8 +905,6 @@ impl Cpu {
                 self.set_z_n(r);
                 7
             }
-
-            // ROL (Accumulator / ZeroPage / ZeroPageX / Absolute / AbsoluteX)
             0x2A => {
                 let c = self.get_flag(Self::C) as u8;
                 self.set_flag(Self::C, self.a & 0x80 != 0);
@@ -1008,8 +952,6 @@ impl Cpu {
                 self.set_z_n(r);
                 7
             }
-
-            // ROR (Accumulator / ZeroPage / ZeroPageX / Absolute / AbsoluteX)
             0x6A => {
                 let c = self.get_flag(Self::C) as u8;
                 self.set_flag(Self::C, self.a & 1 != 0);
@@ -1057,8 +999,6 @@ impl Cpu {
                 self.set_z_n(r);
                 7
             }
-
-            // CLI / SEI / CLV / NOP / BRK / RTI
             0x58 => {
                 self.set_flag(Self::I, false);
                 2
@@ -1075,9 +1015,9 @@ impl Cpu {
             0x00 => {
                 let pc_after = self.pc.wrapping_add(1);
                 self.push_word(mem, pc_after);
-                self.push_byte(mem, self.status | 0x10); // B flag set
+                self.push_byte(mem, self.status | 0x10);
                 self.set_flag(Self::I, true);
-                self.pc = self.read_word(mem, 0xFFFE); // IRQ vector
+                self.pc = self.read_word(mem, 0xFFFE);
                 7
             }
             0x40 => {
@@ -1097,7 +1037,6 @@ impl Cpu {
                 self.write_byte(mem, a, self.a);
                 5
             }
-
             0xD5 => {
                 let a = self.zero_page_x(mem);
                 let v = self.read_byte(mem, a);
@@ -1128,7 +1067,6 @@ impl Cpu {
                 self.compare(self.a, v);
                 5
             }
-
             0xEC => {
                 let a = self.absolute(mem);
                 let v = self.read_byte(mem, a);
@@ -1141,7 +1079,6 @@ impl Cpu {
                 self.compare(self.y, v);
                 4
             }
-
             0x35 => {
                 let a = self.zero_page_x(mem);
                 let v = self.read_byte(mem, a);
@@ -1177,7 +1114,6 @@ impl Cpu {
                 self.set_z_n(self.a);
                 5
             }
-
             0x15 => {
                 let a = self.zero_page_x(mem);
                 let v = self.read_byte(mem, a);
@@ -1213,7 +1149,6 @@ impl Cpu {
                 self.set_z_n(self.a);
                 5
             }
-
             0x55 => {
                 let a = self.zero_page_x(mem);
                 let v = self.read_byte(mem, a);
@@ -1249,7 +1184,6 @@ impl Cpu {
                 self.set_z_n(self.a);
                 5
             }
-
             0xD8 => {
                 self.set_flag(Self::D, false);
                 2

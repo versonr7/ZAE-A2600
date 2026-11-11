@@ -38,7 +38,10 @@ static FRAME_LOCK: AtomicBool = AtomicBool::new(false);
 struct FrameLockGuard;
 impl FrameLockGuard {
     fn try_acquire() -> Option<Self> {
-        if FRAME_LOCK.compare_exchange(false, true, Ordering::Acquire, Ordering::Acquire).is_ok() {
+        if FRAME_LOCK
+            .compare_exchange(false, true, Ordering::Acquire, Ordering::Acquire)
+            .is_ok()
+        {
             Some(FrameLockGuard)
         } else {
             None
@@ -72,7 +75,8 @@ static EMU_INITIALIZED: AtomicBool = AtomicBool::new(false);
 
 #[no_mangle]
 pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnReset(
-    _env: *mut c_void, _class: *mut c_void,
+    _env: *mut c_void,
+    _class: *mut c_void,
 ) {
     logfox!("A2600", "RESET pressed");
     RESET_FRAMES.store(30, Ordering::Release);
@@ -80,7 +84,8 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnReset(
 
 #[no_mangle]
 pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnRenderThreadExit(
-    _env: *mut c_void, _class: *mut c_void,
+    _env: *mut c_void,
+    _class: *mut c_void,
 ) {
     unsafe {
         let ctx_ptr = GL_CTX.load(Ordering::Acquire);
@@ -104,21 +109,29 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnRenderThreadE
 }
 
 #[no_mangle]
-pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnCreate(_env: *mut c_void, _class: *mut c_void) {
+pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnCreate(
+    _env: *mut c_void,
+    _class: *mut c_void,
+) {
     logfox!("ZAVOGLES", "Native onCreate");
 }
 
 #[no_mangle]
 pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnSurfaceCreated(
-    _env: *mut c_void, _class: *mut c_void, surface: *mut c_void,
+    _env: *mut c_void,
+    _class: *mut c_void,
+    surface: *mut c_void,
 ) {
     logfox!("ZAVOGLES", "Native surfaceCreated");
     unsafe {
         let anw = za_sys::ANativeWindow_fromSurface(_env, surface);
-        if anw.is_null() { return; }
+        if anw.is_null() {
+            return;
+        }
 
         if let Some(win) = NativeWindow::from_raw(anw) {
-            let w = win.width(); let h = win.height();
+            let w = win.width();
+            let h = win.height();
             WIDTH.store(w, Ordering::Release);
             HEIGHT.store(h, Ordering::Release);
             INITIALIZED.store(true, Ordering::Release);
@@ -147,38 +160,65 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnSurfaceCreate
 
 #[no_mangle]
 pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnSurfaceChanged(
-    _env: *mut c_void, _class: *mut c_void, width: i32, height: i32,
+    _env: *mut c_void,
+    _class: *mut c_void,
+    width: i32,
+    height: i32,
 ) {
     WIDTH.store(width, Ordering::Release);
     HEIGHT.store(height, Ordering::Release);
 }
 
 #[no_mangle]
-pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnSurfaceDestroyed(_env: *mut c_void, _class: *mut c_void) {
+pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnSurfaceDestroyed(
+    _env: *mut c_void,
+    _class: *mut c_void,
+) {
     RUNNING.store(false, Ordering::Release);
 }
 
 #[no_mangle]
-pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnPause(_env: *mut c_void, _class: *mut c_void) {
+pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnPause(
+    _env: *mut c_void,
+    _class: *mut c_void,
+) {
     RUNNING.store(false, Ordering::Release);
 }
 
 #[no_mangle]
-pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnResume(_env: *mut c_void, _class: *mut c_void) {}
+pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnResume(
+    _env: *mut c_void,
+    _class: *mut c_void,
+) {
+}
 
 #[no_mangle]
-pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnDestroy(_env: *mut c_void, _class: *mut c_void) {
+pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnDestroy(
+    _env: *mut c_void,
+    _class: *mut c_void,
+) {
     RUNNING.store(false, Ordering::Release);
 }
 
 #[no_mangle]
 pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnTouch(
-    _env: *mut c_void, _class: *mut c_void, _x: f32, _y: f32, _action: i32,
-) {}
+    _env: *mut c_void,
+    _class: *mut c_void,
+    _x: f32,
+    _y: f32,
+    _action: i32,
+) {
+}
 
 #[no_mangle]
 pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnJoystick(
-    _env: *mut c_void, _class: *mut c_void, up: i32, down: i32, left: i32, right: i32, fire: i32,
+    _env: *mut c_void,
+    _class: *mut c_void,
+    up: i32,
+    down: i32,
+    left: i32,
+    right: i32,
+    fire: i32,
 ) {
     JOY_UP.store(up != 0, Ordering::Release);
     JOY_DOWN.store(down != 0, Ordering::Release);
@@ -189,23 +229,30 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnJoystick(
 
 #[no_mangle]
 pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
-    _env: *mut c_void, _class: *mut c_void,
+    _env: *mut c_void,
+    _class: *mut c_void,
 ) {
     let _guard = match FrameLockGuard::try_acquire() {
         Some(g) => g,
         None => return,
     };
 
-    if !RUNNING.load(Ordering::Acquire) { return; }
+    if !RUNNING.load(Ordering::Acquire) {
+        return;
+    }
 
     unsafe {
         let ctx_ptr = GL_CTX.load(Ordering::Acquire);
-        if ctx_ptr.is_null() { return; }
+        if ctx_ptr.is_null() {
+            return;
+        }
         let ctx = &mut *ctx_ptr;
 
         let batch_ptr = BATCH.load(Ordering::Acquire);
         if batch_ptr.is_null() {
-            if let Err(_) = ctx.make_current() { return; }
+            if let Err(_) = ctx.make_current() {
+                return;
+            }
             ctx.setup_gl_state();
 
             if let Ok(batch) = BatchRenderer::<400, 600>::new() {
