@@ -146,23 +146,28 @@ impl Cpu {
         self.state = CpuState::Fetch;
     }
 
-    /// ⚠️ [Cycle-Accurate] تتقدم وحدة المعالجة المركزية خطوة واحدة.
-    pub fn step_cycle(&mut self, mem: &mut Memory) -> u8 {
-        self.cycles += 1;
-        match self.state {
-            CpuState::Fetch => {
-                self.opcode = self.read_byte(mem, self.pc);
-                self.pc = self.pc.wrapping_add(1);
-                self.state = CpuState::Execute;
-                1
-            }
-            CpuState::Execute => {
-                let cycles_used = self.execute(self.opcode, mem);
-                self.state = CpuState::Fetch;
-                cycles_used
-            }
+    /// ⚠️ [Cycle-Accurate] تتقدم CPU دورة واحدة، مع مراعاة WSYNC.
+pub fn step_cycle(&mut self, mem: &mut Memory) -> u8 {
+    // إذا كان WSYNC نشطاً، لا تتقدم CPU. TIA هي التي ستتقدم في الحلقة الرئيسية.
+    if mem.tia.wsync {
+        return 0;
+    }
+
+    self.cycles += 1;
+    match self.state {
+        CpuState::Fetch => {
+            self.opcode = self.read_byte(mem, self.pc);
+            self.pc = self.pc.wrapping_add(1);
+            self.state = CpuState::Execute;
+            1
+        }
+        CpuState::Execute => {
+            let cycles_used = self.execute(self.opcode, mem);
+            self.state = CpuState::Fetch;
+            cycles_used
         }
     }
+}
 
     fn execute(&mut self, opcode: u8, mem: &mut Memory) -> u8 {
         match opcode {
@@ -344,28 +349,38 @@ impl Cpu {
         let hi = self.pull_byte(mem) as u16;
         (hi << 8) | lo
     }
-    fn pull_byte(&mut self, mem: &mut Memory) -> u8 {
+        fn pull_byte(&mut self, mem: &mut Memory) -> u8 {
         self.sp = self.sp.wrapping_add(1);
         let addr = 0x100 | self.sp as u16;
         self.read_byte(mem, addr)
     }
-  /// ⚠️ [Cycle-Accurate] تشغيل عدد محدد من الدورات باستخدام القفل على الساعة.
-pub fn run_for_cycles(&mut self, mem: &mut Memory, target_cycles: u32) -> u32 {
-    let mut total = 0;
-    while total < target_cycles {
-        let cycles = self.step_cycle(mem) as u32;
-        
-        // ✅ القفل على الساعة: TIA و RIOT يتقدمان مع CPU
-        mem.tia.tick_cycle(cycles as u8);
-        mem.tick_riot(cycles);
-        
-        total += cycles;
-    }
-    total
-}
 
-/// تشغيل إطار كامل (19912 دورة).
-pub fn run_frame(&mut self, mem: &mut Memory) -> u32 {
-    self.run_for_cycles(mem, 19912)
-}
+    /// ⚠️ [Cycle-Accurate] تشغيل عدد من دورات CPU، مع قفل الساعة مع TIA.
+    pub fn run_for_cycles(&mut self, mem: &mut Memory, target_cpu_cycles: u32) -> u32 {
+        let mut total_cpu = 0;
+        while total_cpu < target_cpu_cycles {
+            if mem.tia.wsync {
+                // ✅ WSYNC نشط: TIA تتقدم حتى نهاية السطر، وCPU متوقف.
+                let remaining_tia = 228 - mem.tia.cycle_in_scanline;
+                mem.tia.tick_cycle(remaining_tia);
+                mem.tick_riot(remaining_tia / 3); // RIOT يعمل بسرعة CPU
+                mem.tia.wsync = false;
+                // لا نضيف دورات CPU هنا، لأن CPU لم يتقدم.
+            } else {
+                let cpu_cycles = self.step_cycle(mem) as u32;
+                if cpu_cycles > 0 {
+                    // ✅ كل دورة CPU = 3 دورات TIA
+                    mem.tia.tick_cycle(cpu_cycles * 3);
+                    mem.tick_riot(cpu_cycles);
+                    total_cpu += cpu_cycles;
+                }
+            }
+        }
+        total_cpu
+    }
+
+    /// تشغيل إطار كامل (19912 دورة CPU).
+    pub fn run_frame(&mut self, mem: &mut Memory) -> u32 {
+        self.run_for_cycles(mem, 19912)
+    }
 }

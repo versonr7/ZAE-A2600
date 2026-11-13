@@ -304,7 +304,7 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
             }
         }
 
-        // --- ⚠️ [Cycle-Accurate] تشغيل إطار واحد ---
+        // --- ⚠️ [Cycle-Accurate] تشغيل إطار واحد (19912 دورة CPU) ---
 let mem = &mut *MEM_STORAGE.as_mut_ptr();
 let cpu = &mut *CPU_STORAGE.as_mut_ptr();
 cpu.run_for_cycles(mem, 19912);

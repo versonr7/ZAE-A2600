@@ -45,19 +45,18 @@ pub const TIA_PF0: u16 = 0x0D;
 pub const TIA_PF1: u16 = 0x0E;
 pub const TIA_PF2: u16 = 0x0F;
 
-pub const SCANLINE_CYCLES: u32 = 76;
+// كان: pub const SCANLINE_CYCLES: u32 = 76;
+pub const SCANLINE_CYCLES: u32 = 228; // ✅ 76 دورة CPU × 3 = 228 دورة TIA
 pub const TOTAL_SCANLINES: u16 = 262;
 pub const VISIBLE_START: u16 = 40;
 pub const FB_WIDTH: usize = 160;
 pub const FB_HEIGHT: usize = 192;
 pub const FB_SIZE: usize = FB_WIDTH * FB_HEIGHT * 4;
 
-fn hpos_from_cycle(cycle: u32) -> u8 {
-    let cc = cycle * 3;
-    if cc < 68 { 0 } else {
-        let px = cc - 68;
-        if px > 159 { 159 } else { px as u8 }
-    }
+fn hpos_from_cycle(tia_cycle: u32) -> u8 {
+    // tia_cycle هو 0..228، وكل 3 دورات TIA = بكسل واحد
+    let px = tia_cycle / 3;
+    if px > 159 { 159 } else { px as u8 }
 }
 
 pub struct Tia {
@@ -154,10 +153,10 @@ impl Tia {
             0x0B => self.refp0 = value & 0x08 != 0, 0x0C => self.refp1 = value & 0x08 != 0,
             0x0D => self.pf0 = value, 0x0E => self.pf1 = value, 0x0F => self.pf2 = value,
             0x10 => self.hpos_p0 = hpos_from_cycle(self.cycle_in_scanline),
-            0x11 => self.hpos_p1 = hpos_from_cycle(self.cycle_in_scanline),
-            0x12 => self.hpos_m0 = hpos_from_cycle(self.cycle_in_scanline),
-            0x13 => self.hpos_m1 = hpos_from_cycle(self.cycle_in_scanline),
-            0x14 => self.hpos_bl = hpos_from_cycle(self.cycle_in_scanline),
+0x11 => self.hpos_p1 = hpos_from_cycle(self.cycle_in_scanline),
+0x12 => self.hpos_m0 = hpos_from_cycle(self.cycle_in_scanline),
+0x13 => self.hpos_m1 = hpos_from_cycle(self.cycle_in_scanline),
+0x14 => self.hpos_bl = hpos_from_cycle(self.cycle_in_scanline),
             0x1B => self.grp0 = value, 0x1C => self.grp1 = value,
             0x1D => self.enam0 = value & 0x02 != 0, 0x1E => self.enam1 = value & 0x02 != 0,
             0x1F => self.enabl = value & 0x02 != 0,
@@ -166,15 +165,9 @@ impl Tia {
                 self.hmove_pending = if nibble < 8 { nibble as i8 } else if nibble == 8 { 0 } else { nibble as i8 - 16 };
             }
             0x2A => {
-                // ⚠️ [Cycle-Accurate] تأخير HMOVE يعتمد على الحالة
-                self.hmove_latch = true;
-                if self.hmove_ripple >= 1 && self.hmove_ripple <= 15 {
-                    // إذا كان التمشيط جارياً، التأخير قصير
-                    self.hmove_delay = 2;
-                } else {
-                    // إذا كان Latch جديداً، التأخير 3 (أو 6 في بعض النسخ)
-                    self.hmove_delay = 3;
-                }
+    self.hmove_latch = true;
+    // ✅ تأخير 6 دورات TIA (أي دورتَي CPU) قبل بدء التمشيط
+    self.hmove_delay = 6;
             }
             0x2B => {
                 // ⚠️ [Cycle-Accurate] HMCLR يوقف كل الحركة
@@ -187,47 +180,48 @@ impl Tia {
         }
     }
 
-    /// ⚠️ [Cycle-Accurate] تتقدم TIA دورة ساعة واحدة.
-    pub fn tick_cycle(&mut self, cycles: u8) {
-        for _ in 0..cycles {
-            // 1. معالجة تأخير HMOVE
-            if self.hmove_delay > 0 {
-                self.hmove_delay -= 1;
-                if self.hmove_delay == 0 {
-                    self.hmove_ripple = 15;
-                }
-            }
-            // 2. معالجة التمشيط (Ripple)
-            if self.hmove_ripple > 0 {
-                let d = self.hmove_pending as i16;
-                if d > 0 {
-                    self.hpos_p0 = self.hpos_p0.saturating_add(1);
-                    self.hpos_p1 = self.hpos_p1.saturating_add(1);
-                    self.hpos_m0 = self.hpos_m0.saturating_add(1);
-                    self.hpos_m1 = self.hpos_m1.saturating_add(1);
-                    self.hpos_bl = self.hpos_bl.saturating_add(1);
-                } else if d < 0 {
-                    self.hpos_p0 = self.hpos_p0.saturating_sub(1);
-                    self.hpos_p1 = self.hpos_p1.saturating_sub(1);
-                    self.hpos_m0 = self.hpos_m0.saturating_sub(1);
-                    self.hpos_m1 = self.hpos_m1.saturating_sub(1);
-                    self.hpos_bl = self.hpos_bl.saturating_sub(1);
-                }
-                self.hmove_ripple -= 1;
-                if self.hmove_ripple == 0 {
-                    self.hmove_pending = 0;
-                    self.hmove_latch = false;
-                }
-            }
-
-            self.cycle_in_scanline += 1;
-            if self.cycle_in_scanline >= SCANLINE_CYCLES {
-                self.cycle_in_scanline = 0;
-                self.hmove_latch = false; // إعادة تعيين Latch في نهاية الخط
-                self.end_of_scanline();
+    /// ⚠️ [Cycle-Accurate] تتقدم TIA بعدد من دورات TIA (وليس CPU).
+pub fn tick_cycle(&mut self, tia_cycles: u32) {
+    for _ in 0..tia_cycles {
+        // 1. معالجة تأخير HMOVE
+        if self.hmove_delay > 0 {
+            self.hmove_delay -= 1;
+            if self.hmove_delay == 0 {
+                self.hmove_ripple = 15;
             }
         }
+        // 2. معالجة التمشيط (Ripple)
+        if self.hmove_ripple > 0 {
+            let d = self.hmove_pending as i16;
+            if d > 0 {
+                self.hpos_p0 = self.hpos_p0.saturating_add(1);
+                self.hpos_p1 = self.hpos_p1.saturating_add(1);
+                self.hpos_m0 = self.hpos_m0.saturating_add(1);
+                self.hpos_m1 = self.hpos_m1.saturating_add(1);
+                self.hpos_bl = self.hpos_bl.saturating_add(1);
+            } else if d < 0 {
+                self.hpos_p0 = self.hpos_p0.saturating_sub(1);
+                self.hpos_p1 = self.hpos_p1.saturating_sub(1);
+                self.hpos_m0 = self.hpos_m0.saturating_sub(1);
+                self.hpos_m1 = self.hpos_m1.saturating_sub(1);
+                self.hpos_bl = self.hpos_bl.saturating_sub(1);
+            }
+            self.hmove_ripple -= 1;
+            if self.hmove_ripple == 0 {
+                self.hmove_pending = 0;
+                self.hmove_latch = false;
+            }
+        }
+
+        // 3. تقدم المسح الضوئي (دورة TIA واحدة)
+        self.cycle_in_scanline += 1;
+        if self.cycle_in_scanline >= SCANLINE_CYCLES {
+            self.cycle_in_scanline = 0;
+            self.hmove_latch = false;
+            self.end_of_scanline();
+        }
     }
+}
 
     fn end_of_scanline(&mut self) {
         if self.scanline >= VISIBLE_START && (self.scanline - VISIBLE_START) < FB_HEIGHT as u16 {
