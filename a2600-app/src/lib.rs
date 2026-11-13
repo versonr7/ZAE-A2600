@@ -304,16 +304,10 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
             }
         }
 
-        // --- ⚠️ [Cycle-Accurate] تشغيل إطار واحد بنظام القفل على الساعة ---
+        // --- ⚠️ [Cycle-Accurate] تشغيل إطار واحد ---
 let mem = &mut *MEM_STORAGE.as_mut_ptr();
 let cpu = &mut *CPU_STORAGE.as_mut_ptr();
-let mut cycles_remaining = 19912u32;
-while cycles_remaining > 0 {
-    let cpu_cycles = cpu.step_cycle(mem) as u32;
-    mem.tia.tick_cycle(cpu_cycles as u8);
-    mem.tick_riot(cpu_cycles);
-    cycles_remaining = cycles_remaining.saturating_sub(cpu_cycles);
-}
+cpu.run_for_cycles(mem, 19912);
 
         let tex_ptr = SCREEN_TEX.load(Ordering::Acquire);
         if !tex_ptr.is_null() {

@@ -349,4 +349,23 @@ impl Cpu {
         let addr = 0x100 | self.sp as u16;
         self.read_byte(mem, addr)
     }
+  /// ⚠️ [Cycle-Accurate] تشغيل عدد محدد من الدورات باستخدام القفل على الساعة.
+pub fn run_for_cycles(&mut self, mem: &mut Memory, target_cycles: u32) -> u32 {
+    let mut total = 0;
+    while total < target_cycles {
+        let cycles = self.step_cycle(mem) as u32;
+        
+        // ✅ القفل على الساعة: TIA و RIOT يتقدمان مع CPU
+        mem.tia.tick_cycle(cycles as u8);
+        mem.tick_riot(cycles);
+        
+        total += cycles;
+    }
+    total
+}
+
+/// تشغيل إطار كامل (19912 دورة).
+pub fn run_frame(&mut self, mem: &mut Memory) -> u32 {
+    self.run_for_cycles(mem, 19912)
+}
 }
