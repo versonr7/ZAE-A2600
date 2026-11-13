@@ -43,8 +43,9 @@ pub const FB_HEIGHT: usize = 192;
 pub const FB_SIZE: usize = FB_WIDTH * FB_HEIGHT * 4;
 
 fn hpos_from_cycle(tia_cycle: u32) -> u8 {
+    // ✅ أثناء HBLANK، RESP0/RESP1 يضعان اللاعب في البكسل 3 (وليس 0)
     if tia_cycle < 68 {
-        0
+        3 // للاعبين (RESP0/RESP1)
     } else {
         let px = tia_cycle - 68;
         if px > 159 { 159 } else { px as u8 }
@@ -168,31 +169,34 @@ impl Tia {
         }
     }
 
-    /// ⚠️ [Cycle-Accurate] تتقدم TIA بعدد من دورات TIA.
-    pub fn tick_cycle(&mut self, tia_cycles: u32) {
-        for _ in 0..tia_cycles {
-            if self.hmove_delay > 0 {
-                self.hmove_delay -= 1;
-                if self.hmove_delay == 0 {
-                    let d = self.hmove_pending as i16;
-                    self.hpos_p0 = ((self.hpos_p0 as i16 + d).clamp(0, 159)) as u8;
-                    self.hpos_p1 = ((self.hpos_p1 as i16 + d).clamp(0, 159)) as u8;
-                    self.hpos_m0 = ((self.hpos_m0 as i16 + d).clamp(0, 159)) as u8;
-                    self.hpos_m1 = ((self.hpos_m1 as i16 + d).clamp(0, 159)) as u8;
-                    self.hpos_bl = ((self.hpos_bl as i16 + d).clamp(0, 159)) as u8;
-                    self.hmove_pending = 0;
-                    self.hmove_latch = false;
-                }
-            }
-
-            self.cycle_in_scanline += 1;
-            if self.cycle_in_scanline >= SCANLINE_CYCLES {
-                self.cycle_in_scanline = 0;
+/// ⚠️ [Cycle-Accurate] تتقدم TIA بعدد من دورات TIA.
+pub fn tick_cycle(&mut self, tia_cycles: u32) {
+    for _ in 0..tia_cycles {
+        // 1. معالجة تأخير HMOVE (6 دورات TIA)
+        if self.hmove_delay > 0 {
+            self.hmove_delay -= 1;
+            if self.hmove_delay == 0 {
+                // ✅ تطبيق القيمة النهائية مباشرة (وليس تدريجياً)
+                let d = self.hmove_pending as i16;
+                self.hpos_p0 = ((self.hpos_p0 as i16 + d).clamp(0, 159)) as u8;
+                self.hpos_p1 = ((self.hpos_p1 as i16 + d).clamp(0, 159)) as u8;
+                self.hpos_m0 = ((self.hpos_m0 as i16 + d).clamp(0, 159)) as u8;
+                self.hpos_m1 = ((self.hpos_m1 as i16 + d).clamp(0, 159)) as u8;
+                self.hpos_bl = ((self.hpos_bl as i16 + d).clamp(0, 159)) as u8;
+                self.hmove_pending = 0;
                 self.hmove_latch = false;
-                self.end_of_scanline();
             }
         }
+
+        // 2. تقدم المسح الضوئي
+        self.cycle_in_scanline += 1;
+        if self.cycle_in_scanline >= SCANLINE_CYCLES {
+            self.cycle_in_scanline = 0;
+            self.hmove_latch = false;
+            self.end_of_scanline();
+        }
     }
+}
 
     fn end_of_scanline(&mut self) {
         if self.scanline >= VISIBLE_START && (self.scanline - VISIBLE_START) < FB_HEIGHT as u16 {
