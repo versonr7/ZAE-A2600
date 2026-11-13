@@ -54,9 +54,13 @@ pub const FB_HEIGHT: usize = 192;
 pub const FB_SIZE: usize = FB_WIDTH * FB_HEIGHT * 4;
 
 fn hpos_from_cycle(tia_cycle: u32) -> u8 {
-    // tia_cycle هو 0..228، وكل 3 دورات TIA = بكسل واحد
-    let px = tia_cycle / 3;
-    if px > 159 { 159 } else { px as u8 }
+    // ✅ الدورة 0..67 هي HBLANK، والدورة 68..227 هي البكسلات المرئية (160 بكسل)
+    if tia_cycle < 68 {
+        0
+    } else {
+        let px = tia_cycle - 68;
+        if px > 159 { 159 } else { px as u8 }
+    }
 }
 
 pub struct Tia {
@@ -166,54 +170,30 @@ impl Tia {
             }
             0x2A => {
     self.hmove_latch = true;
-    // ✅ تأخير 6 دورات TIA (أي دورتَي CPU) قبل بدء التمشيط
     self.hmove_delay = 6;
             }
-            0x2B => {
-                // ⚠️ [Cycle-Accurate] HMCLR يوقف كل الحركة
-                self.hmove_pending = 0;
-                self.hmove_ripple = 0;
-                self.hmove_delay = 0;
-                self.hmove_latch = false;
-            }
-            _ => {}
-        }
-    }
 
-    /// ⚠️ [Cycle-Accurate] تتقدم TIA بعدد من دورات TIA (وليس CPU).
+    /// ⚠️ [Cycle-Accurate] تتقدم TIA بعدد من دورات TIA.
 pub fn tick_cycle(&mut self, tia_cycles: u32) {
     for _ in 0..tia_cycles {
         // 1. معالجة تأخير HMOVE
         if self.hmove_delay > 0 {
             self.hmove_delay -= 1;
             if self.hmove_delay == 0 {
-                self.hmove_ripple = 15;
-            }
-        }
-        // 2. معالجة التمشيط (Ripple)
-        if self.hmove_ripple > 0 {
-            let d = self.hmove_pending as i16;
-            if d > 0 {
-                self.hpos_p0 = self.hpos_p0.saturating_add(1);
-                self.hpos_p1 = self.hpos_p1.saturating_add(1);
-                self.hpos_m0 = self.hpos_m0.saturating_add(1);
-                self.hpos_m1 = self.hpos_m1.saturating_add(1);
-                self.hpos_bl = self.hpos_bl.saturating_add(1);
-            } else if d < 0 {
-                self.hpos_p0 = self.hpos_p0.saturating_sub(1);
-                self.hpos_p1 = self.hpos_p1.saturating_sub(1);
-                self.hpos_m0 = self.hpos_m0.saturating_sub(1);
-                self.hpos_m1 = self.hpos_m1.saturating_sub(1);
-                self.hpos_bl = self.hpos_bl.saturating_sub(1);
-            }
-            self.hmove_ripple -= 1;
-            if self.hmove_ripple == 0 {
+                // ✅ تطبيق الحركة مرة واحدة فقط (المقدار الصحيح)
+                let d = self.hmove_pending as i16;
+                self.hpos_p0 = ((self.hpos_p0 as i16 + d).clamp(0, 159)) as u8;
+                self.hpos_p1 = ((self.hpos_p1 as i16 + d).clamp(0, 159)) as u8;
+                self.hpos_m0 = ((self.hpos_m0 as i16 + d).clamp(0, 159)) as u8;
+                self.hpos_m1 = ((self.hpos_m1 as i16 + d).clamp(0, 159)) as u8;
+                self.hpos_bl = ((self.hpos_bl as i16 + d).clamp(0, 159)) as u8;
+                
                 self.hmove_pending = 0;
                 self.hmove_latch = false;
             }
         }
 
-        // 3. تقدم المسح الضوئي (دورة TIA واحدة)
+        // 2. تقدم المسح الضوئي
         self.cycle_in_scanline += 1;
         if self.cycle_in_scanline >= SCANLINE_CYCLES {
             self.cycle_in_scanline = 0;
