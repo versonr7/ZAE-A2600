@@ -102,6 +102,7 @@ pub struct Tia {
     // ⚠️ [Cycle-Accurate] حقول HMOVE
     pub hmove_delay: u8,
     pub hmove_ripple: i8,
+    pub hmove_latch: bool, // هل تم تفعيل HMOVE في هذا الخط؟
 }
 
 impl Tia {
@@ -114,7 +115,7 @@ impl Tia {
             nusiz0: 0, nusiz1: 0, enabl: false, enam0: false, enam1: false,
             refp0: false, refp1: false, hmove_pending: 0, inpt4: 0x80,
             cxm0p: 0, cxm1p: 0, cxp0fb: 0, cxp1fb: 0, cxm0fb: 0, cxm1fb: 0,
-            cxblpf: 0, cxppmm: 0, hmove_delay: 0, hmove_ripple: 0,
+            cxblpf: 0, cxppmm: 0, hmove_delay: 0, hmove_ripple: 0, hmove_latch: false,
         }
     }
 
@@ -142,7 +143,7 @@ impl Tia {
             0x00 => {
                 let was = self.vsync;
                 self.vsync = value & 0x02 != 0;
-                if self.vsync && !was { self.scanline = 0; self.cycle_in_scanline = 0; }
+                if self.vsync && !was { self.scanline = 0; self.cycle_in_scanline = 0; self.hmove_latch = false; }
             }
             0x01 => self.vblank = value & 0x02 != 0,
             0x02 => self.wsync = true,
@@ -164,8 +165,24 @@ impl Tia {
                 let nibble = (value >> 4) & 0x0F;
                 self.hmove_pending = if nibble < 8 { nibble as i8 } else if nibble == 8 { 0 } else { nibble as i8 - 16 };
             }
-            0x2A => { self.hmove_delay = 6; } // ⚠️ [Cycle-Accurate] تأخير HMOVE
-            0x2B => { self.hmove_pending = 0; }
+            0x2A => {
+                // ⚠️ [Cycle-Accurate] تأخير HMOVE يعتمد على الحالة
+                self.hmove_latch = true;
+                if self.hmove_ripple >= 1 && self.hmove_ripple <= 15 {
+                    // إذا كان التمشيط جارياً، التأخير قصير
+                    self.hmove_delay = 2;
+                } else {
+                    // إذا كان Latch جديداً، التأخير 3 (أو 6 في بعض النسخ)
+                    self.hmove_delay = 3;
+                }
+            }
+            0x2B => {
+                // ⚠️ [Cycle-Accurate] HMCLR يوقف كل الحركة
+                self.hmove_pending = 0;
+                self.hmove_ripple = 0;
+                self.hmove_delay = 0;
+                self.hmove_latch = false;
+            }
             _ => {}
         }
     }
@@ -173,10 +190,14 @@ impl Tia {
     /// ⚠️ [Cycle-Accurate] تتقدم TIA دورة ساعة واحدة.
     pub fn tick_cycle(&mut self, cycles: u8) {
         for _ in 0..cycles {
+            // 1. معالجة تأخير HMOVE
             if self.hmove_delay > 0 {
                 self.hmove_delay -= 1;
-                if self.hmove_delay == 0 { self.hmove_ripple = 15; }
+                if self.hmove_delay == 0 {
+                    self.hmove_ripple = 15;
+                }
             }
+            // 2. معالجة التمشيط (Ripple)
             if self.hmove_ripple > 0 {
                 let d = self.hmove_pending as i16;
                 if d > 0 {
@@ -193,12 +214,16 @@ impl Tia {
                     self.hpos_bl = self.hpos_bl.saturating_sub(1);
                 }
                 self.hmove_ripple -= 1;
-                if self.hmove_ripple == 0 { self.hmove_pending = 0; }
+                if self.hmove_ripple == 0 {
+                    self.hmove_pending = 0;
+                    self.hmove_latch = false;
+                }
             }
 
             self.cycle_in_scanline += 1;
             if self.cycle_in_scanline >= SCANLINE_CYCLES {
                 self.cycle_in_scanline = 0;
+                self.hmove_latch = false; // إعادة تعيين Latch في نهاية الخط
                 self.end_of_scanline();
             }
         }
