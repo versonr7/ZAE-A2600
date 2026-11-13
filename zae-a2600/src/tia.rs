@@ -35,18 +35,7 @@ pub const NTSC_PALETTE: [(u8, u8, u8); 128] = [
     (0xB8, 0x9C, 0x58), (0xD0, 0xB4, 0x6C), (0xE8, 0xCC, 0x7C), (0xFC, 0xE0, 0x8C),
 ];
 
-pub const TIA_VSYNC: u16 = 0x00;
-pub const TIA_VBLANK: u16 = 0x01;
-pub const TIA_WSYNC: u16 = 0x02;
-pub const TIA_COLUPF: u16 = 0x08;
-pub const TIA_COLUBK: u16 = 0x09;
-pub const TIA_CTRLPF: u16 = 0x0A;
-pub const TIA_PF0: u16 = 0x0D;
-pub const TIA_PF1: u16 = 0x0E;
-pub const TIA_PF2: u16 = 0x0F;
-
-// كان: pub const SCANLINE_CYCLES: u32 = 76;
-pub const SCANLINE_CYCLES: u32 = 228; // ✅ 76 دورة CPU × 3 = 228 دورة TIA
+pub const SCANLINE_CYCLES: u32 = 228;
 pub const TOTAL_SCANLINES: u16 = 262;
 pub const VISIBLE_START: u16 = 40;
 pub const FB_WIDTH: usize = 160;
@@ -54,7 +43,6 @@ pub const FB_HEIGHT: usize = 192;
 pub const FB_SIZE: usize = FB_WIDTH * FB_HEIGHT * 4;
 
 fn hpos_from_cycle(tia_cycle: u32) -> u8 {
-    // ✅ الدورة 0..67 هي HBLANK، والدورة 68..227 هي البكسلات المرئية (160 بكسل)
     if tia_cycle < 68 {
         0
     } else {
@@ -104,8 +92,7 @@ pub struct Tia {
     pub cxppmm: u8,
     // ⚠️ [Cycle-Accurate] حقول HMOVE
     pub hmove_delay: u8,
-    pub hmove_ripple: i8,
-    pub hmove_latch: bool, // هل تم تفعيل HMOVE في هذا الخط؟
+    pub hmove_latch: bool,
 }
 
 impl Tia {
@@ -118,14 +105,14 @@ impl Tia {
             nusiz0: 0, nusiz1: 0, enabl: false, enam0: false, enam1: false,
             refp0: false, refp1: false, hmove_pending: 0, inpt4: 0x80,
             cxm0p: 0, cxm1p: 0, cxp0fb: 0, cxp1fb: 0, cxm0fb: 0, cxm1fb: 0,
-            cxblpf: 0, cxppmm: 0, hmove_delay: 0, hmove_ripple: 0, hmove_latch: false,
+            cxblpf: 0, cxppmm: 0, hmove_delay: 0, hmove_latch: false,
         }
     }
 
     pub fn read_register(&self, addr: u16) -> u8 {
         match addr {
-            TIA_VBLANK => { if self.vblank { 0x80 } else { 0x00 } }
-            TIA_COLUBK => self.colubk,
+            0x00 => { if self.vblank { 0x80 } else { 0x00 } }
+            0x09 => self.colubk,
             0x30 => self.cxm0p, 0x31 => self.cxm1p, 0x32 => self.cxp0fb,
             0x33 => self.cxp1fb, 0x34 => self.cxm0fb, 0x35 => self.cxm1fb,
             0x36 => self.cxblpf, 0x37 => self.cxppmm, 0x3C => self.inpt4,
@@ -157,10 +144,10 @@ impl Tia {
             0x0B => self.refp0 = value & 0x08 != 0, 0x0C => self.refp1 = value & 0x08 != 0,
             0x0D => self.pf0 = value, 0x0E => self.pf1 = value, 0x0F => self.pf2 = value,
             0x10 => self.hpos_p0 = hpos_from_cycle(self.cycle_in_scanline),
-0x11 => self.hpos_p1 = hpos_from_cycle(self.cycle_in_scanline),
-0x12 => self.hpos_m0 = hpos_from_cycle(self.cycle_in_scanline),
-0x13 => self.hpos_m1 = hpos_from_cycle(self.cycle_in_scanline),
-0x14 => self.hpos_bl = hpos_from_cycle(self.cycle_in_scanline),
+            0x11 => self.hpos_p1 = hpos_from_cycle(self.cycle_in_scanline),
+            0x12 => self.hpos_m0 = hpos_from_cycle(self.cycle_in_scanline),
+            0x13 => self.hpos_m1 = hpos_from_cycle(self.cycle_in_scanline),
+            0x14 => self.hpos_bl = hpos_from_cycle(self.cycle_in_scanline),
             0x1B => self.grp0 = value, 0x1C => self.grp1 = value,
             0x1D => self.enam0 = value & 0x02 != 0, 0x1E => self.enam1 = value & 0x02 != 0,
             0x1F => self.enabl = value & 0x02 != 0,
@@ -169,39 +156,43 @@ impl Tia {
                 self.hmove_pending = if nibble < 8 { nibble as i8 } else if nibble == 8 { 0 } else { nibble as i8 - 16 };
             }
             0x2A => {
-    self.hmove_latch = true;
-    self.hmove_delay = 6;
+                self.hmove_latch = true;
+                self.hmove_delay = 6;
             }
-
-    /// ⚠️ [Cycle-Accurate] تتقدم TIA بعدد من دورات TIA.
-pub fn tick_cycle(&mut self, tia_cycles: u32) {
-    for _ in 0..tia_cycles {
-        // 1. معالجة تأخير HMOVE
-        if self.hmove_delay > 0 {
-            self.hmove_delay -= 1;
-            if self.hmove_delay == 0 {
-                // ✅ تطبيق الحركة مرة واحدة فقط (المقدار الصحيح)
-                let d = self.hmove_pending as i16;
-                self.hpos_p0 = ((self.hpos_p0 as i16 + d).clamp(0, 159)) as u8;
-                self.hpos_p1 = ((self.hpos_p1 as i16 + d).clamp(0, 159)) as u8;
-                self.hpos_m0 = ((self.hpos_m0 as i16 + d).clamp(0, 159)) as u8;
-                self.hpos_m1 = ((self.hpos_m1 as i16 + d).clamp(0, 159)) as u8;
-                self.hpos_bl = ((self.hpos_bl as i16 + d).clamp(0, 159)) as u8;
-                
+            0x2B => {
                 self.hmove_pending = 0;
+                self.hmove_delay = 0;
                 self.hmove_latch = false;
             }
-        }
-
-        // 2. تقدم المسح الضوئي
-        self.cycle_in_scanline += 1;
-        if self.cycle_in_scanline >= SCANLINE_CYCLES {
-            self.cycle_in_scanline = 0;
-            self.hmove_latch = false;
-            self.end_of_scanline();
+            _ => {}
         }
     }
-}
+
+    /// ⚠️ [Cycle-Accurate] تتقدم TIA بعدد من دورات TIA.
+    pub fn tick_cycle(&mut self, tia_cycles: u32) {
+        for _ in 0..tia_cycles {
+            if self.hmove_delay > 0 {
+                self.hmove_delay -= 1;
+                if self.hmove_delay == 0 {
+                    let d = self.hmove_pending as i16;
+                    self.hpos_p0 = ((self.hpos_p0 as i16 + d).clamp(0, 159)) as u8;
+                    self.hpos_p1 = ((self.hpos_p1 as i16 + d).clamp(0, 159)) as u8;
+                    self.hpos_m0 = ((self.hpos_m0 as i16 + d).clamp(0, 159)) as u8;
+                    self.hpos_m1 = ((self.hpos_m1 as i16 + d).clamp(0, 159)) as u8;
+                    self.hpos_bl = ((self.hpos_bl as i16 + d).clamp(0, 159)) as u8;
+                    self.hmove_pending = 0;
+                    self.hmove_latch = false;
+                }
+            }
+
+            self.cycle_in_scanline += 1;
+            if self.cycle_in_scanline >= SCANLINE_CYCLES {
+                self.cycle_in_scanline = 0;
+                self.hmove_latch = false;
+                self.end_of_scanline();
+            }
+        }
+    }
 
     fn end_of_scanline(&mut self) {
         if self.scanline >= VISIBLE_START && (self.scanline - VISIBLE_START) < FB_HEIGHT as u16 {
