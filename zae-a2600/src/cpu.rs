@@ -148,18 +148,22 @@ impl Cpu {
 
     /// ⚠️ [Cycle-Accurate] تتقدم CPU دورة واحدة، مع مراعاة WSYNC.
 pub fn step_cycle(&mut self, mem: &mut Memory) -> u8 {
-    if mem.tia.wsync { return 0; }
+    if mem.tia.wsync {
+        return 0;
+    }
+
+    self.cycles += 1; // ✅ تأكد من وجود هذا السطر
+
     match self.state {
         CpuState::Fetch => {
             self.opcode = self.read_byte(mem, self.pc);
             self.pc = self.pc.wrapping_add(1);
             self.state = CpuState::Execute;
-            1 // دورة الجلب
+            1
         }
         CpuState::Execute => {
             let total_cycles = self.execute(self.opcode, mem);
             self.state = CpuState::Fetch;
-            // ✅ نطرح 1 لأن دورة الجلب تم حسابها بالفعل
             total_cycles.saturating_sub(1)
         }
     }
