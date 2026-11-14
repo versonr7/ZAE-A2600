@@ -1,6 +1,7 @@
 //! ذاكرة Atari 2600 الأساسية
 
 use crate::tia::Tia;
+pub type TraceFn = fn(u16, u8, u16, u32);
 
 pub const RAM_SIZE: usize = 128;
 pub const ROM_SIZE: usize = 4096;
@@ -16,6 +17,8 @@ pub struct Memory {
     pub riot_timer_started: bool,
     pub swcha: u8,
     pub swchb: u8,
+    pub trace_tia: bool,
+  pub trace_fn: Option<TraceFn>,
 }
 
 impl Memory {
@@ -31,12 +34,20 @@ impl Memory {
             riot_timer_started: false,
             swcha: 0xFF,
             swchb: 0x0F, // ✅ البت 3 = 1 → وضع الألوان
+            trace_tia: false,
+            trace_fn: None,
         }
     }
 
     pub fn load_rom(&mut self, data: &[u8]) {
-        let len = data.len().min(ROM_SIZE);
-        self.rom[..len].copy_from_slice(&data[..len]);
+    let len = data.len().min(ROM_SIZE);
+    self.rom[..len].copy_from_slice(&data[..len]);
+    
+    // ✅ إذا كان الـ ROM أصغر من 4K (مثل 2K)، نعكسه لملء الفراغ
+    // هذا ضروري لمحاكاة Mirroring في Atari 2600
+    if len == 2048 {
+        self.rom[2048..4096].copy_from_slice(&data[..2048]);
+    }
     }
 
     fn riot_read(&self, addr: u16) -> u8 {
@@ -165,13 +176,16 @@ impl Memory {
     }
 
     pub fn write(&mut self, addr: u16, value: u8) {
-        let a = addr & 0x1FFF;
-        match a {
-            0x0000..=0x007F => self.tia.write_register(a & 0x3F, value),
-            0x0080..=0x00FF => self.ram[(a & 0x7F) as usize] = value,
-            0x0180..=0x01FF => self.ram[(a & 0x7F) as usize] = value,
-            0x0280..=0x02FF => self.riot_write(a, value),
-            _ => {}
-        }
+    let a = addr & 0x1FFF;
+    if let Some(f) = self.trace_fn {
+        f(a, value, self.tia.scanline, self.tia.cycle_in_scanline);
+    }
+    match a {
+        0x0000..=0x007F => self.tia.write_register(a & 0x3F, value),
+        0x0080..=0x00FF => self.ram[(a & 0x7F) as usize] = value,
+        0x0180..=0x01FF => self.ram[(a & 0x7F) as usize] = value,
+        0x0280..=0x02FF => self.riot_write(a, value),
+        _ => {}
+    }
     }
 }

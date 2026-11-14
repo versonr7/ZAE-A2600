@@ -43,9 +43,8 @@ pub const FB_HEIGHT: usize = 192;
 pub const FB_SIZE: usize = FB_WIDTH * FB_HEIGHT * 4;
 
 fn hpos_from_cycle(tia_cycle: u32) -> u8 {
-    // ✅ أثناء HBLANK، RESP0/RESP1 يضعان اللاعب في البكسل 3 (وليس 0)
     if tia_cycle < 68 {
-        3 // للاعبين (RESP0/RESP1)
+        3 // ✅ أثناء HBLANK، اللاعب يبدأ من البكسل 3
     } else {
         let px = tia_cycle - 68;
         if px > 159 { 159 } else { px as u8 }
