@@ -93,6 +93,7 @@ pub struct Tia {
     // ⚠️ [Cycle-Accurate] حقول HMOVE
     pub hmove_delay: u8,
     pub hmove_latch: bool,
+    pub hmove_ripple: i8,
 }
 
 impl Tia {
@@ -106,6 +107,7 @@ impl Tia {
             refp0: false, refp1: false, hmove_pending: 0, inpt4: 0x80,
             cxm0p: 0, cxm1p: 0, cxp0fb: 0, cxp1fb: 0, cxm0fb: 0, cxm1fb: 0,
             cxblpf: 0, cxppmm: 0, hmove_delay: 0, hmove_latch: false,
+            hmove_ripple: 0,
         }
     }
 
@@ -171,27 +173,39 @@ impl Tia {
 /// ⚠️ [Cycle-Accurate] تتقدم TIA بعدد من دورات TIA.
 pub fn tick_cycle(&mut self, tia_cycles: u32) {
     for _ in 0..tia_cycles {
-        // 1. معالجة تأخير HMOVE (6 دورات TIA)
+        // 1. تأخير HMOVE
         if self.hmove_delay > 0 {
             self.hmove_delay -= 1;
             if self.hmove_delay == 0 {
-                // ✅ تطبيق القيمة النهائية مباشرة (وليس تدريجياً)
-                let d = self.hmove_pending as i16;
-                self.hpos_p0 = ((self.hpos_p0 as i16 + d).clamp(0, 159)) as u8;
-                self.hpos_p1 = ((self.hpos_p1 as i16 + d).clamp(0, 159)) as u8;
-                self.hpos_m0 = ((self.hpos_m0 as i16 + d).clamp(0, 159)) as u8;
-                self.hpos_m1 = ((self.hpos_m1 as i16 + d).clamp(0, 159)) as u8;
-                self.hpos_bl = ((self.hpos_bl as i16 + d).clamp(0, 159)) as u8;
-                self.hmove_pending = 0;
-                self.hmove_latch = false;
+                self.hmove_ripple = self.hmove_pending; // ✅ بدء التمشيط
             }
         }
 
-        // 2. تقدم المسح الضوئي
+        // 2. التمشيط (بكسل واحد لكل دورة TIA)
+        if self.hmove_ripple > 0 {
+            self.hpos_p0 = self.hpos_p0.saturating_add(1);
+            self.hpos_p1 = self.hpos_p1.saturating_add(1);
+            self.hpos_m0 = self.hpos_m0.saturating_add(1);
+            self.hpos_m1 = self.hpos_m1.saturating_add(1);
+            self.hpos_bl = self.hpos_bl.saturating_add(1);
+            self.hmove_ripple -= 1;
+            if self.hmove_ripple == 0 { self.hmove_pending = 0; }
+        } else if self.hmove_ripple < 0 {
+            self.hpos_p0 = self.hpos_p0.saturating_sub(1);
+            self.hpos_p1 = self.hpos_p1.saturating_sub(1);
+            self.hpos_m0 = self.hpos_m0.saturating_sub(1);
+            self.hpos_m1 = self.hpos_m1.saturating_sub(1);
+            self.hpos_bl = self.hpos_bl.saturating_sub(1);
+            self.hmove_ripple += 1;
+            if self.hmove_ripple == 0 { self.hmove_pending = 0; }
+        }
+
+        // 3. تقدم المسح الضوئي
         self.cycle_in_scanline += 1;
         if self.cycle_in_scanline >= SCANLINE_CYCLES {
             self.cycle_in_scanline = 0;
             self.hmove_latch = false;
+            self.hmove_ripple = 0; // إعادة تعيين في بداية السطر
             self.end_of_scanline();
         }
     }

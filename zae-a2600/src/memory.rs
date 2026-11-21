@@ -119,23 +119,23 @@ impl Memory {
         }
     }
 
-    /// ✅ تصحيح: يستخدم البتات 4-7 (Player 0)، وليس 0-3 (Player 1)
-    pub fn set_joystick(&mut self, up: bool, down: bool, left: bool, right: bool) {
-        let mut s = 0xFFu8;
-        if up {
-            s &= !0x10;
-        } // bit 4
-        if down {
-            s &= !0x20;
-        } // bit 5
-        if left {
-            s &= !0x40;
-        } // bit 6
-        if right {
-            s &= !0x80;
-        } // bit 7
-        self.swcha = s;
-    }
+    /// ✅ تصحيح: يستخدم البتات 4-7 (Player 0)، وليس 0-3 (Player 1)    
+pub fn set_joystick(&mut self, up: bool, down: bool, left: bool, right: bool) {
+    let mut s = self.swcha; // ✅ قراءة القيمة الحالية بدلاً من مسحها
+    if up { s &= !0x10; } else { s |= 0x10; }
+    if down { s &= !0x20; } else { s |= 0x20; }
+    if left { s &= !0x40; } else { s |= 0x40; }
+    if right { s &= !0x80; } else { s |= 0x80; }
+    self.swcha = s;
+}
+  pub fn set_joystick_p2(&mut self, up: bool, down: bool, left: bool, right: bool) {
+    let mut s = self.swcha;
+    if up { s &= !0x01; } else { s |= 0x01; }
+    if down { s &= !0x02; } else { s |= 0x02; }
+    if left { s &= !0x04; } else { s |= 0x04; }
+    if right { s &= !0x08; } else { s |= 0x08; }
+    self.swcha = s;
+  }
 
     pub fn set_fire(&mut self, pressed: bool) {
         self.tia.inpt4 = if pressed { 0x00 } else { 0x80 };

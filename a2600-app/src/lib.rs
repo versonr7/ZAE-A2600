@@ -293,6 +293,13 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
                 JOY_LEFT.load(Ordering::Acquire),
                 JOY_RIGHT.load(Ordering::Acquire),
             );
+          // ✅ تحكم اللاعب 2 (نستخدم نفس أزرار اللاعب 1 مؤقتاً للاختبار)
+mem.set_joystick_p2(
+    JOY_UP.load(Ordering::Acquire),
+    JOY_DOWN.load(Ordering::Acquire),
+    JOY_LEFT.load(Ordering::Acquire),
+    JOY_RIGHT.load(Ordering::Acquire),
+);
             mem.set_fire(JOY_FIRE.load(Ordering::Acquire));
 
             let cnt = RESET_FRAMES.load(Ordering::Acquire);

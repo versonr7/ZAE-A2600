@@ -71,7 +71,19 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
         Button btnLeft = createTransparentButton("◀");
         Button btnRight = createTransparentButton("▶");
         Button btnFire = createTransparentButton("🔥");
-
+// ... (بعد إنشاء btnFire)
+Button btnReset = createTransparentButton("RST");
+RelativeLayout.LayoutParams resetParams = new RelativeLayout.LayoutParams(120, 120);
+resetParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+resetParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
+resetParams.setMargins(0, 80, 80, 0);
+btnReset.setLayoutParams(resetParams);
+overlay.addView(btnReset);
+btnReset.setOnTouchListener((v, event) -> {
+    if (event.getAction() == MotionEvent.ACTION_DOWN) nativeOnReset();
+    return true;
+});
+      
         GridLayout dpadLayout = new GridLayout(this);
         dpadLayout.setColumnCount(3);
         dpadLayout.setRowCount(3);
