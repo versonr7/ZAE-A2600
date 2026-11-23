@@ -293,13 +293,6 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
                 JOY_LEFT.load(Ordering::Acquire),
                 JOY_RIGHT.load(Ordering::Acquire),
             );
-          // ✅ تحكم اللاعب 2 (نستخدم نفس أزرار اللاعب 1 مؤقتاً للاختبار)
-mem.set_joystick_p2(
-    JOY_UP.load(Ordering::Acquire),
-    JOY_DOWN.load(Ordering::Acquire),
-    JOY_LEFT.load(Ordering::Acquire),
-    JOY_RIGHT.load(Ordering::Acquire),
-);
             mem.set_fire(JOY_FIRE.load(Ordering::Acquire));
 
             let cnt = RESET_FRAMES.load(Ordering::Acquire);
@@ -312,9 +305,9 @@ mem.set_joystick_p2(
         }
 
         // --- ⚠️ [Cycle-Accurate] تشغيل إطار واحد (19912 دورة CPU) ---
-let mem = &mut *MEM_STORAGE.as_mut_ptr();
-let cpu = &mut *CPU_STORAGE.as_mut_ptr();
-cpu.run_for_cycles(mem, 19912);
+        let mem = &mut *MEM_STORAGE.as_mut_ptr();
+        let cpu = &mut *CPU_STORAGE.as_mut_ptr();
+        cpu.run_for_cycles(mem, 19912);
 
         let tex_ptr = SCREEN_TEX.load(Ordering::Acquire);
         if !tex_ptr.is_null() {

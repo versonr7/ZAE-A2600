@@ -1,4 +1,5 @@
 use crate::memory::Memory;
+use crate::tia::SCANLINE_CYCLES;
 
 #[derive(Default, Clone, Copy)]
 pub struct Cpu {
@@ -12,7 +13,6 @@ pub struct Cpu {
     // --- حقول آلة الحالة (Cycle-Accurate) ---
     pub state: CpuState,
     pub opcode: u8,
-    pub cycle_count: u8,
 }
 
 #[derive(Default, Clone, Copy, PartialEq)]
@@ -29,7 +29,6 @@ impl Cpu {
             cycles: 0,
             state: CpuState::Fetch,
             opcode: 0,
-            cycle_count: 0,
         }
     }
 
@@ -43,25 +42,29 @@ impl Cpu {
     fn set_flag(&mut self, flag: u8, value: bool) {
         if value { self.status |= flag; } else { self.status &= !flag; }
     }
+    
     fn get_flag(&self, flag: u8) -> bool { self.status & flag != 0 }
+    
     fn set_z_n(&mut self, value: u8) {
         self.set_flag(Self::Z, value == 0);
         self.set_flag(Self::N, value & 0x80 != 0);
     }
+    
     fn compare(&mut self, reg: u8, value: u8) {
         let result = reg.wrapping_sub(value);
         self.set_flag(Self::C, reg >= value);
         self.set_z_n(result);
     }
-    fn adc(&mut self, value: u8) -> u8 {
+    
+    fn adc(&mut self, value: u8) {
         let carry = self.get_flag(Self::C) as u8;
         let result = self.a as u16 + value as u16 + carry as u16;
         self.set_flag(Self::C, result > 0xFF);
         self.set_flag(Self::V, (!(self.a ^ value) & (self.a ^ (result as u8)) & 0x80) != 0);
         self.a = (result & 0xFF) as u8;
         self.set_z_n(self.a);
-        0
     }
+    
     fn sbc(&mut self, value: u8) {
         let carry = self.get_flag(Self::C) as u8;
         let result = self.a as i16 - value as i16 - (1 - carry as i16);
@@ -70,6 +73,7 @@ impl Cpu {
         self.a = (result as u8) & 0xFF;
         self.set_z_n(self.a);
     }
+    
     fn bit(&mut self, value: u8) {
         self.set_flag(Self::Z, (self.a & value) == 0);
         self.set_flag(Self::N, value & 0x80 != 0);
@@ -78,63 +82,100 @@ impl Cpu {
 
     fn read_byte(&mut self, mem: &mut Memory, addr: u16) -> u8 { mem.read(addr) }
     fn write_byte(&mut self, mem: &mut Memory, addr: u16, value: u8) { mem.write(addr, value); }
+    
     fn read_word(&mut self, mem: &mut Memory, addr: u16) -> u16 {
         let lo = self.read_byte(mem, addr) as u16;
         let hi = self.read_byte(mem, addr.wrapping_add(1)) as u16;
         (hi << 8) | lo
     }
 
+    // --- أنماط العنونة ---
     fn immediate(&mut self, mem: &mut Memory) -> u8 {
         let val = self.read_byte(mem, self.pc);
         self.pc = self.pc.wrapping_add(1);
         val
     }
+    
     fn zero_page(&mut self, mem: &mut Memory) -> u16 {
         let addr = self.read_byte(mem, self.pc) as u16;
         self.pc = self.pc.wrapping_add(1);
         addr
     }
+    
     fn absolute(&mut self, mem: &mut Memory) -> u16 {
         let addr = self.read_word(mem, self.pc);
         self.pc = self.pc.wrapping_add(2);
         addr
     }
+    
     fn zero_page_x(&mut self, mem: &mut Memory) -> u16 {
         let base = self.read_byte(mem, self.pc) as u16;
         self.pc = self.pc.wrapping_add(1);
         base.wrapping_add(self.x as u16) & 0xFF
     }
+    
     fn absolute_x(&mut self, mem: &mut Memory) -> u16 {
         let base = self.read_word(mem, self.pc);
         self.pc = self.pc.wrapping_add(2);
         base.wrapping_add(self.x as u16)
     }
+    
     fn indirect_x(&mut self, mem: &mut Memory) -> u16 {
         let zp = self.read_byte(mem, self.pc) as u16;
         self.pc = self.pc.wrapping_add(1);
         let addr = (zp.wrapping_add(self.x as u16) & 0xFF) as u16;
         self.read_word(mem, addr)
     }
+    
     fn zero_page_y(&mut self, mem: &mut Memory) -> u16 {
         let base = self.read_byte(mem, self.pc) as u16;
         self.pc = self.pc.wrapping_add(1);
         base.wrapping_add(self.y as u16) & 0xFF
     }
+    
     fn absolute_y(&mut self, mem: &mut Memory) -> u16 {
         let base = self.read_word(mem, self.pc);
         self.pc = self.pc.wrapping_add(2);
         base.wrapping_add(self.y as u16)
     }
+    
     fn fetch_relative(&mut self, mem: &mut Memory) -> i8 {
         let offset = self.read_byte(mem, self.pc) as i8;
         self.pc = self.pc.wrapping_add(1);
         offset
     }
+    
     fn indirect_y(&mut self, mem: &mut Memory) -> u16 {
         let zp = self.read_byte(mem, self.pc) as u16;
         self.pc = self.pc.wrapping_add(1);
         let base = self.read_word(mem, zp);
         base.wrapping_add(self.y as u16)
+    }
+
+    // --- المكدس ---
+    fn push_word(&mut self, mem: &mut Memory, value: u16) {
+        let hi = (value >> 8) as u8;
+        let lo = (value & 0xFF) as u8;
+        self.push_byte(mem, hi);
+        self.push_byte(mem, lo);
+    }
+    
+    fn push_byte(&mut self, mem: &mut Memory, value: u8) {
+        let addr = 0x100 | self.sp as u16;
+        self.write_byte(mem, addr, value);
+        self.sp = self.sp.wrapping_sub(1);
+    }
+    
+    fn pull_word(&mut self, mem: &mut Memory) -> u16 {
+        let lo = self.pull_byte(mem) as u16;
+        let hi = self.pull_byte(mem) as u16;
+        (hi << 8) | lo
+    }
+    
+    fn pull_byte(&mut self, mem: &mut Memory) -> u8 {
+        self.sp = self.sp.wrapping_add(1);
+        let addr = 0x100 | self.sp as u16;
+        self.read_byte(mem, addr)
     }
 
     pub fn reset(&mut self, mem: &mut Memory) {
@@ -146,28 +187,29 @@ impl Cpu {
         self.state = CpuState::Fetch;
     }
 
-    /// ⚠️ [Cycle-Accurate] تتقدم CPU دورة واحدة، مع مراعاة WSYNC.
-pub fn step_cycle(&mut self, mem: &mut Memory) -> u8 {
-    if mem.tia.wsync {
-        return 0;
-    }
-
-    self.cycles += 1; // ✅ تأكد من وجود هذا السطر
-
-    match self.state {
-        CpuState::Fetch => {
-            self.opcode = self.read_byte(mem, self.pc);
-            self.pc = self.pc.wrapping_add(1);
-            self.state = CpuState::Execute;
-            1
+      /// ⚠️ [Cycle-Accurate] تتقدم CPU دورة واحدة، مع مراعاة WSYNC.
+    pub fn step_cycle(&mut self, mem: &mut Memory) -> u8 {
+        if mem.tia.wsync {
+            return 0;
         }
-        CpuState::Execute => {
-            let total_cycles = self.execute(self.opcode, mem);
-            self.state = CpuState::Fetch;
-            total_cycles.saturating_sub(1)
+
+        self.cycles += 1;
+
+        match self.state {
+            CpuState::Fetch => {
+                self.opcode = self.read_byte(mem, self.pc);
+                self.pc = self.pc.wrapping_add(1);
+                self.state = CpuState::Execute;
+                1
+            }
+            CpuState::Execute => {
+                let total_cycles = self.execute(self.opcode, mem);
+                self.state = CpuState::Fetch;
+                // ✅ نطرح 1 لأن دورة الجلب تم حسابها بالفعل في حالة Fetch
+                total_cycles.saturating_sub(1)
+            }
         }
     }
-}
 
     fn execute(&mut self, opcode: u8, mem: &mut Memory) -> u8 {
         match opcode {
@@ -233,7 +275,7 @@ pub fn step_cycle(&mut self, mem: &mut Memory) -> u8 {
             0x68 => { self.a = self.pull_byte(mem); self.set_z_n(self.a); 4 }
             0x08 => { self.push_byte(mem, self.status | 0x10); 3 }
             0x28 => { self.status = self.pull_byte(mem); 4 }
-            0x69 => { let v = self.immediate(mem); let cycles = self.adc(v); cycles }
+            0x69 => { let v = self.immediate(mem); self.adc(v); 2 }
             0x65 => { let a = self.zero_page(mem); let v = self.read_byte(mem, a); self.adc(v); 3 }
             0x75 => { let a = self.zero_page_x(mem); let v = self.read_byte(mem, a); self.adc(v); 4 }
             0x6D => { let a = self.absolute(mem); let v = self.read_byte(mem, a); self.adc(v); 4 }
@@ -333,35 +375,13 @@ pub fn step_cycle(&mut self, mem: &mut Memory) -> u8 {
         }
     }
 
-    fn push_word(&mut self, mem: &mut Memory, value: u16) {
-        let hi = (value >> 8) as u8;
-        let lo = (value & 0xFF) as u8;
-        self.push_byte(mem, hi);
-        self.push_byte(mem, lo);
-    }
-    fn push_byte(&mut self, mem: &mut Memory, value: u8) {
-        let addr = 0x100 | self.sp as u16;
-        self.write_byte(mem, addr, value);
-        self.sp = self.sp.wrapping_sub(1);
-    }
-    fn pull_word(&mut self, mem: &mut Memory) -> u16 {
-        let lo = self.pull_byte(mem) as u16;
-        let hi = self.pull_byte(mem) as u16;
-        (hi << 8) | lo
-    }
-        fn pull_byte(&mut self, mem: &mut Memory) -> u8 {
-        self.sp = self.sp.wrapping_add(1);
-        let addr = 0x100 | self.sp as u16;
-        self.read_byte(mem, addr)
-    }
-
-    /// ⚠️ [Cycle-Accurate] تشغيل عدد من دورات CPU، مع قفل الساعة مع TIA.
+    /// ⚠️ [Cycle-Accurate] تشغيل عدد من دورات CPU مع قفل الساعة مع TIA.
     pub fn run_for_cycles(&mut self, mem: &mut Memory, target_cpu_cycles: u32) -> u32 {
         let mut total_cpu = 0;
         while total_cpu < target_cpu_cycles {
             if mem.tia.wsync {
                 // ✅ WSYNC نشط: TIA تتقدم حتى نهاية السطر، وCPU متوقف.
-                let remaining_tia = 228 - mem.tia.cycle_in_scanline;
+                let remaining_tia = SCANLINE_CYCLES - mem.tia.cycle_in_scanline;
                 mem.tia.tick_cycle(remaining_tia);
                 mem.tick_riot(remaining_tia / 3); // RIOT يعمل بسرعة CPU
                 mem.tia.wsync = false;
@@ -383,4 +403,4 @@ pub fn step_cycle(&mut self, mem: &mut Memory) -> u8 {
     pub fn run_frame(&mut self, mem: &mut Memory) -> u32 {
         self.run_for_cycles(mem, 19912)
     }
-}
+} // <-- هذا القوس يغلق impl Cpu

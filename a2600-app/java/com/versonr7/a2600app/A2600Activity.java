@@ -65,62 +65,70 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
     }
 
     private View createControlsOverlay() {
-        RelativeLayout overlay = new RelativeLayout(this);
-        Button btnUp = createTransparentButton("▲");
-        Button btnDown = createTransparentButton("▼");
-        Button btnLeft = createTransparentButton("◀");
-        Button btnRight = createTransparentButton("▶");
-        Button btnFire = createTransparentButton("🔥");
-// ... (بعد إنشاء btnFire)
-Button btnReset = createTransparentButton("RST");
-RelativeLayout.LayoutParams resetParams = new RelativeLayout.LayoutParams(120, 120);
-resetParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
-resetParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
-resetParams.setMargins(0, 80, 80, 0);
-btnReset.setLayoutParams(resetParams);
-overlay.addView(btnReset);
-btnReset.setOnTouchListener((v, event) -> {
-    if (event.getAction() == MotionEvent.ACTION_DOWN) nativeOnReset();
-    return true;
-});
-      
-        GridLayout dpadLayout = new GridLayout(this);
-        dpadLayout.setColumnCount(3);
-        dpadLayout.setRowCount(3);
-        RelativeLayout.LayoutParams dpadParams = new RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT
-        );
-        dpadParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-        dpadParams.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
-        dpadParams.setMargins(80, 50, 0, 80);
-        dpadLayout.setLayoutParams(dpadParams);
+    RelativeLayout overlay = new RelativeLayout(this);
+    
+    // 1. إنشاء الأزرار
+    Button btnUp = createTransparentButton("▲");
+    Button btnDown = createTransparentButton("▼");
+    Button btnLeft = createTransparentButton("◀");
+    Button btnRight = createTransparentButton("▶");
+    Button btnFire = createTransparentButton("🔥");
+    Button btnReset = createTransparentButton("RST");
 
-        dpadLayout.addView(new Space(this), new GridLayout.LayoutParams(GridLayout.spec(0), GridLayout.spec(0)));
-        dpadLayout.addView(btnUp, createGridParams(0, 1));
-        dpadLayout.addView(new Space(this), new GridLayout.LayoutParams(GridLayout.spec(0), GridLayout.spec(2)));
-        dpadLayout.addView(btnLeft, createGridParams(1, 0));
-        dpadLayout.addView(new Space(this), new GridLayout.LayoutParams(GridLayout.spec(1), GridLayout.spec(1)));
-        dpadLayout.addView(btnRight, createGridParams(1, 2));
-        dpadLayout.addView(new Space(this), new GridLayout.LayoutParams(GridLayout.spec(2), GridLayout.spec(0)));
-        dpadLayout.addView(btnDown, createGridParams(2, 1));
-        dpadLayout.addView(new Space(this), new GridLayout.LayoutParams(GridLayout.spec(2), GridLayout.spec(2)));
+    // 2. ترتيب D-Pad في الزاوية اليسرى السفلى (GridLayout)
+    GridLayout dpadLayout = new GridLayout(this);
+    dpadLayout.setColumnCount(3);
+    dpadLayout.setRowCount(3);
+    RelativeLayout.LayoutParams dpadParams = new RelativeLayout.LayoutParams(
+            RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT
+    );
+    dpadParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+    dpadParams.addRule(RelativeLayout.ALIGN_PARENT_LEFT);
+    dpadParams.setMargins(80, 50, 0, 80);
+    dpadLayout.setLayoutParams(dpadParams);
 
-        RelativeLayout.LayoutParams fireParams = new RelativeLayout.LayoutParams(160, 160);
-        fireParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
-        fireParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
-        fireParams.setMargins(0, 0, 100, 100);
-        btnFire.setLayoutParams(fireParams);
+    dpadLayout.addView(new Space(this), new GridLayout.LayoutParams(GridLayout.spec(0), GridLayout.spec(0)));
+    dpadLayout.addView(btnUp, createGridParams(0, 1));
+    dpadLayout.addView(new Space(this), new GridLayout.LayoutParams(GridLayout.spec(0), GridLayout.spec(2)));
+    dpadLayout.addView(btnLeft, createGridParams(1, 0));
+    dpadLayout.addView(new Space(this), new GridLayout.LayoutParams(GridLayout.spec(1), GridLayout.spec(1)));
+    dpadLayout.addView(btnRight, createGridParams(1, 2));
+    dpadLayout.addView(new Space(this), new GridLayout.LayoutParams(GridLayout.spec(2), GridLayout.spec(0)));
+    dpadLayout.addView(btnDown, createGridParams(2, 1));
+    dpadLayout.addView(new Space(this), new GridLayout.LayoutParams(GridLayout.spec(2), GridLayout.spec(2)));
 
-        overlay.addView(dpadLayout);
-        overlay.addView(btnFire);
+    // 3. ترتيب زر النار في الزاوية اليمنى السفلى
+    RelativeLayout.LayoutParams fireParams = new RelativeLayout.LayoutParams(160, 160);
+    fireParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+    fireParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
+    fireParams.setMargins(0, 0, 100, 100);
+    btnFire.setLayoutParams(fireParams);
 
-        btnUp.setOnTouchListener((v, event) -> { handleTouch(event, 1, 0, 0, 0, 0); return true; });
-        btnDown.setOnTouchListener((v, event) -> { handleTouch(event, 0, 1, 0, 0, 0); return true; });
-        btnLeft.setOnTouchListener((v, event) -> { handleTouch(event, 0, 0, 1, 0, 0); return true; });
-        btnRight.setOnTouchListener((v, event) -> { handleTouch(event, 0, 0, 0, 1, 0); return true; });
-        btnFire.setOnTouchListener((v, event) -> { handleTouch(event, 0, 0, 0, 0, 1); return true; });
+    // 4. ترتيب زر الـ Reset في الزاوية اليمنى العليا
+    RelativeLayout.LayoutParams resetParams = new RelativeLayout.LayoutParams(120, 120);
+    resetParams.addRule(RelativeLayout.ALIGN_PARENT_TOP);
+    resetParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
+    resetParams.setMargins(0, 80, 80, 0);
+    btnReset.setLayoutParams(resetParams);
 
-        return overlay;
+    // 5. إضافة كل شيء إلى الشاشة
+    overlay.addView(dpadLayout);
+    overlay.addView(btnFire);
+    overlay.addView(btnReset);
+
+    // 6. ربط الأزرار بالتحكم
+    btnUp.setOnTouchListener((v, event) -> { handleTouch(event, 1, 0, 0, 0, 0); return true; });
+    btnDown.setOnTouchListener((v, event) -> { handleTouch(event, 0, 1, 0, 0, 0); return true; });
+    btnLeft.setOnTouchListener((v, event) -> { handleTouch(event, 0, 0, 1, 0, 0); return true; });
+    btnRight.setOnTouchListener((v, event) -> { handleTouch(event, 0, 0, 0, 1, 0); return true; });
+    btnFire.setOnTouchListener((v, event) -> { handleTouch(event, 0, 0, 0, 0, 1); return true; });
+    
+    btnReset.setOnTouchListener((v, event) -> {
+        if (event.getAction() == MotionEvent.ACTION_DOWN) nativeOnReset();
+        return true;
+    });
+
+    return overlay;
     }
 
     private Button createTransparentButton(String text) {

@@ -18,7 +18,7 @@ pub struct Memory {
     pub swcha: u8,
     pub swchb: u8,
     pub trace_tia: bool,
-  pub trace_fn: Option<TraceFn>,
+    pub trace_fn: Option<TraceFn>,
 }
 
 impl Memory {
@@ -40,14 +40,14 @@ impl Memory {
     }
 
     pub fn load_rom(&mut self, data: &[u8]) {
-    let len = data.len().min(ROM_SIZE);
-    self.rom[..len].copy_from_slice(&data[..len]);
-    
-    // ✅ إذا كان الـ ROM أصغر من 4K (مثل 2K)، نعكسه لملء الفراغ
-    // هذا ضروري لمحاكاة Mirroring في Atari 2600
-    if len == 2048 {
-        self.rom[2048..4096].copy_from_slice(&data[..2048]);
-    }
+        let len = data.len().min(ROM_SIZE);
+        self.rom[..len].copy_from_slice(&data[..len]);
+
+        // ✅ إذا كان الـ ROM أصغر من 4K (مثل 2K)، نعكسه لملء الفراغ
+        // هذا ضروري لمحاكاة Mirroring في Atari 2600
+        if len == 2048 {
+            self.rom[2048..4096].copy_from_slice(&data[..2048]);
+        }
     }
 
     fn riot_read(&self, addr: u16) -> u8 {
@@ -120,22 +120,54 @@ impl Memory {
     }
 
     /// ✅ تصحيح: يستخدم البتات 4-7 (Player 0)، وليس 0-3 (Player 1)    
-pub fn set_joystick(&mut self, up: bool, down: bool, left: bool, right: bool) {
-    let mut s = self.swcha; // ✅ قراءة القيمة الحالية بدلاً من مسحها
-    if up { s &= !0x10; } else { s |= 0x10; }
-    if down { s &= !0x20; } else { s |= 0x20; }
-    if left { s &= !0x40; } else { s |= 0x40; }
-    if right { s &= !0x80; } else { s |= 0x80; }
-    self.swcha = s;
-}
-  pub fn set_joystick_p2(&mut self, up: bool, down: bool, left: bool, right: bool) {
-    let mut s = self.swcha;
-    if up { s &= !0x01; } else { s |= 0x01; }
-    if down { s &= !0x02; } else { s |= 0x02; }
-    if left { s &= !0x04; } else { s |= 0x04; }
-    if right { s &= !0x08; } else { s |= 0x08; }
-    self.swcha = s;
-  }
+    pub fn set_joystick(&mut self, up: bool, down: bool, left: bool, right: bool) {
+        let mut s = self.swcha; // ✅ قراءة القيمة الحالية بدلاً من مسحها
+        if up {
+            s &= !0x10;
+        } else {
+            s |= 0x10;
+        }
+        if down {
+            s &= !0x20;
+        } else {
+            s |= 0x20;
+        }
+        if left {
+            s &= !0x40;
+        } else {
+            s |= 0x40;
+        }
+        if right {
+            s &= !0x80;
+        } else {
+            s |= 0x80;
+        }
+        self.swcha = s;
+    }
+    pub fn set_joystick_p2(&mut self, up: bool, down: bool, left: bool, right: bool) {
+        let mut s = self.swcha;
+        if up {
+            s &= !0x01;
+        } else {
+            s |= 0x01;
+        }
+        if down {
+            s &= !0x02;
+        } else {
+            s |= 0x02;
+        }
+        if left {
+            s &= !0x04;
+        } else {
+            s |= 0x04;
+        }
+        if right {
+            s &= !0x08;
+        } else {
+            s |= 0x08;
+        }
+        self.swcha = s;
+    }
 
     pub fn set_fire(&mut self, pressed: bool) {
         self.tia.inpt4 = if pressed { 0x00 } else { 0x80 };
@@ -176,16 +208,16 @@ pub fn set_joystick(&mut self, up: bool, down: bool, left: bool, right: bool) {
     }
 
     pub fn write(&mut self, addr: u16, value: u8) {
-    let a = addr & 0x1FFF;
-    if let Some(f) = self.trace_fn {
-        f(a, value, self.tia.scanline, self.tia.cycle_in_scanline);
-    }
-    match a {
-        0x0000..=0x007F => self.tia.write_register(a & 0x3F, value),
-        0x0080..=0x00FF => self.ram[(a & 0x7F) as usize] = value,
-        0x0180..=0x01FF => self.ram[(a & 0x7F) as usize] = value,
-        0x0280..=0x02FF => self.riot_write(a, value),
-        _ => {}
-    }
+        let a = addr & 0x1FFF;
+        if let Some(f) = self.trace_fn {
+            f(a, value, self.tia.scanline, self.tia.cycle_in_scanline);
+        }
+        match a {
+            0x0000..=0x007F => self.tia.write_register(a & 0x3F, value),
+            0x0080..=0x00FF => self.ram[(a & 0x7F) as usize] = value,
+            0x0180..=0x01FF => self.ram[(a & 0x7F) as usize] = value,
+            0x0280..=0x02FF => self.riot_write(a, value),
+            _ => {}
+        }
     }
 }

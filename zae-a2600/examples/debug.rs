@@ -4,11 +4,17 @@ fn main() {
     let rom = include_bytes!("../../roms/Pong2600.bin");
     let mut mem = Memory::new();
     mem.load_rom(rom);
-    
+
     // ✅ تفعيل التتبع من هنا (الـ debug.rs يمكنه استخدام println)
     mem.trace_fn = Some(|reg, val, sl, cyc| {
-        if matches!(reg, 0x10 | 0x11 | 0x12 | 0x13 | 0x14 | 0x2A | 0x0D | 0x0E | 0x0F) {
-            println!("[TIA] sl={} cyc={} reg=0x{:02X} val=0x{:02X}", sl, cyc, reg, val);
+        if matches!(
+            reg,
+            0x10 | 0x11 | 0x12 | 0x13 | 0x14 | 0x2A | 0x0D | 0x0E | 0x0F
+        ) {
+            println!(
+                "[TIA] sl={} cyc={} reg=0x{:02X} val=0x{:02X}",
+                sl, cyc, reg, val
+            );
         }
     });
 
@@ -23,7 +29,7 @@ fn main() {
 
     while total_cpu_cycles < 19912 && instruction_count < 2_000_000 {
         instruction_count += 1;
-        
+
         if mem.tia.wsync {
             let remaining_tia = 228 - mem.tia.cycle_in_scanline;
             mem.tia.tick_cycle(remaining_tia);
@@ -38,8 +44,10 @@ fn main() {
             }
         }
     }
-    
+
     println!("=== Frame Complete ===");
-    println!("Final: P0_hpos={} P1_hpos={} P0_grp={:02X} P1_grp={:02X}",
-        mem.tia.hpos_p0, mem.tia.hpos_p1, mem.tia.grp0, mem.tia.grp1);
+    println!(
+        "Final: P0_hpos={} P1_hpos={} P0_grp={:02X} P1_grp={:02X}",
+        mem.tia.hpos_p0, mem.tia.hpos_p1, mem.tia.grp0, mem.tia.grp1
+    );
 }
