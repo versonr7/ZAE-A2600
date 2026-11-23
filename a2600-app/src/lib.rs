@@ -275,7 +275,7 @@ pub extern "C" fn Java_com_versonr7_a2600app_A2600Activity_nativeOnFrame(
 
         if !EMU_INITIALIZED.load(Ordering::Acquire) {
             let mut mem = Memory::new();
-            let rom = include_bytes!("../../roms/Pong2600.bin");
+            let rom = include_bytes!("../../roms/Collect_NTSC.bin");
             mem.load_rom(rom);
             MEM_STORAGE.write(mem);
 
