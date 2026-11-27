@@ -371,6 +371,147 @@ impl Cpu {
             0x51 => { let a = self.indirect_y(mem); let v = self.read_byte(mem, a); self.a ^= v; self.set_z_n(self.a); 5 }
             0xD8 => { self.set_flag(Self::D, false); 2 }
             0xF8 => { self.set_flag(Self::D, true); 2 }
+          // ✅ إضافة التعليمات غير الرسمية (Illegal Opcodes) الأكثر استخداماً
+0xFB => { // ISC abs,Y (Increment Memory then SBC)
+    let addr = self.absolute_y(mem);
+    let m = self.read_byte(mem, addr).wrapping_add(1);
+    self.write_byte(mem, addr, m);
+    let carry = self.get_flag(Self::C) as u8;
+    let result = self.a as i16 - m as i16 - (1 - carry as i16);
+    self.set_flag(Self::C, result >= 0);
+    self.set_flag(Self::V, ((self.a ^ m) & (self.a ^ (result as u8)) & 0x80) != 0);
+    self.a = (result as u8) & 0xFF;
+    self.set_z_n(self.a);
+    7
+}
+0xEB => { // SBC Immediate (Illegal)
+    let v = self.immediate(mem);
+    self.sbc(v);
+    2
+}
+0xA7 => { // LAX Zero Page
+    let a = self.zero_page(mem);
+    let v = self.read_byte(mem, a);
+    self.a = v; self.x = v; self.set_z_n(v);
+    3
+}
+0xB7 => { // LAX Zero Page,Y
+    let a = self.zero_page_y(mem);
+    let v = self.read_byte(mem, a);
+    self.a = v; self.x = v; self.set_z_n(v);
+    4
+}
+0xAF => { // LAX Absolute
+    let a = self.absolute(mem);
+    let v = self.read_byte(mem, a);
+    self.a = v; self.x = v; self.set_z_n(v);
+    4
+}
+0xBF => { // LAX Absolute,Y
+    let a = self.absolute_y(mem);
+    let v = self.read_byte(mem, a);
+    self.a = v; self.x = v; self.set_z_n(v);
+    4
+}
+0x87 => { // SAX Zero Page
+    let a = self.zero_page(mem);
+    self.write_byte(mem, a, self.a & self.x);
+    3
+}
+0x8F => { // SAX Absolute
+    let a = self.absolute(mem);
+    self.write_byte(mem, a, self.a & self.x);
+    4
+}
+0xC7 => { // DCP Zero Page (DEC then CMP)
+    let a = self.zero_page(mem);
+    let m = self.read_byte(mem, a).wrapping_sub(1);
+    self.write_byte(mem, a, m);
+    self.compare(self.a, m);
+    5
+}
+0xE7 => { // ISC Zero Page (INC then SBC)
+    let a = self.zero_page(mem);
+    let m = self.read_byte(mem, a).wrapping_add(1);
+    self.write_byte(mem, a, m);
+    let carry = self.get_flag(Self::C) as u8;
+    let result = self.a as i16 - m as i16 - (1 - carry as i16);
+    self.set_flag(Self::C, result >= 0);
+    self.a = (result as u8) & 0xFF;
+    self.set_z_n(self.a);
+    5
+}
+          // ===== الأوبكودات غير الرسمية (Illegal Opcodes) =====
+// LAX (LDA + LDX)
+0xA7 => { let a = self.zero_page(mem); let v = self.read_byte(mem, a); self.a = v; self.x = v; self.set_z_n(v); 3 }
+0xB7 => { let a = self.zero_page_y(mem); let v = self.read_byte(mem, a); self.a = v; self.x = v; self.set_z_n(v); 4 }
+0xAF => { let a = self.absolute(mem); let v = self.read_byte(mem, a); self.a = v; self.x = v; self.set_z_n(v); 4 }
+0xBF => { let a = self.absolute_y(mem); let v = self.read_byte(mem, a); self.a = v; self.x = v; self.set_z_n(v); 4 }
+0xA3 => { let a = self.indirect_x(mem); let v = self.read_byte(mem, a); self.a = v; self.x = v; self.set_z_n(v); 6 }
+0xB3 => { let a = self.indirect_y(mem); let v = self.read_byte(mem, a); self.a = v; self.x = v; self.set_z_n(v); 5 }
+
+// SAX (Store A & X)
+0x87 => { let a = self.zero_page(mem); self.write_byte(mem, a, self.a & self.x); 3 }
+0x97 => { let a = self.zero_page_y(mem); self.write_byte(mem, a, self.a & self.x); 4 }
+0x8F => { let a = self.absolute(mem); self.write_byte(mem, a, self.a & self.x); 4 }
+0x83 => { let a = self.indirect_x(mem); self.write_byte(mem, a, self.a & self.x); 6 }
+
+// DCP (DEC + CMP)
+0xC7 => { let a = self.zero_page(mem); let m = self.read_byte(mem, a).wrapping_sub(1); self.write_byte(mem, a, m); self.compare(self.a, m); 5 }
+0xD7 => { let a = self.zero_page_x(mem); let m = self.read_byte(mem, a).wrapping_sub(1); self.write_byte(mem, a, m); self.compare(self.a, m); 6 }
+0xCF => { let a = self.absolute(mem); let m = self.read_byte(mem, a).wrapping_sub(1); self.write_byte(mem, a, m); self.compare(self.a, m); 6 }
+0xDF => { let a = self.absolute_x(mem); let m = self.read_byte(mem, a).wrapping_sub(1); self.write_byte(mem, a, m); self.compare(self.a, m); 7 }
+0xDB => { let a = self.absolute_y(mem); let m = self.read_byte(mem, a).wrapping_sub(1); self.write_byte(mem, a, m); self.compare(self.a, m); 7 }
+0xC3 => { let a = self.indirect_x(mem); let m = self.read_byte(mem, a).wrapping_sub(1); self.write_byte(mem, a, m); self.compare(self.a, m); 8 }
+0xD3 => { let a = self.indirect_y(mem); let m = self.read_byte(mem, a).wrapping_sub(1); self.write_byte(mem, a, m); self.compare(self.a, m); 8 }
+
+// ISC / ISB (INC + SBC)
+0xE7 => { let a = self.zero_page(mem); let m = self.read_byte(mem, a).wrapping_add(1); self.write_byte(mem, a, m); self.sbc(m); 5 }
+0xF7 => { let a = self.zero_page_x(mem); let m = self.read_byte(mem, a).wrapping_add(1); self.write_byte(mem, a, m); self.sbc(m); 6 }
+0xEF => { let a = self.absolute(mem); let m = self.read_byte(mem, a).wrapping_add(1); self.write_byte(mem, a, m); self.sbc(m); 6 }
+0xFF => { let a = self.absolute_x(mem); let m = self.read_byte(mem, a).wrapping_add(1); self.write_byte(mem, a, m); self.sbc(m); 7 }
+0xFB => { let a = self.absolute_y(mem); let m = self.read_byte(mem, a).wrapping_add(1); self.write_byte(mem, a, m); self.sbc(m); 7 }
+0xE3 => { let a = self.indirect_x(mem); let m = self.read_byte(mem, a).wrapping_add(1); self.write_byte(mem, a, m); self.sbc(m); 8 }
+0xF3 => { let a = self.indirect_y(mem); let m = self.read_byte(mem, a).wrapping_add(1); self.write_byte(mem, a, m); self.sbc(m); 8 }
+
+// SLO (ASL + ORA)
+0x07 => { let a = self.zero_page(mem); let m = self.read_byte(mem, a); self.set_flag(Self::C, m & 0x80 != 0); let r = m << 1; self.write_byte(mem, a, r); self.a |= r; self.set_z_n(self.a); 5 }
+0x17 => { let a = self.zero_page_x(mem); let m = self.read_byte(mem, a); self.set_flag(Self::C, m & 0x80 != 0); let r = m << 1; self.write_byte(mem, a, r); self.a |= r; self.set_z_n(self.a); 6 }
+0x0F => { let a = self.absolute(mem); let m = self.read_byte(mem, a); self.set_flag(Self::C, m & 0x80 != 0); let r = m << 1; self.write_byte(mem, a, r); self.a |= r; self.set_z_n(self.a); 6 }
+0x1F => { let a = self.absolute_x(mem); let m = self.read_byte(mem, a); self.set_flag(Self::C, m & 0x80 != 0); let r = m << 1; self.write_byte(mem, a, r); self.a |= r; self.set_z_n(self.a); 7 }
+0x1B => { let a = self.absolute_y(mem); let m = self.read_byte(mem, a); self.set_flag(Self::C, m & 0x80 != 0); let r = m << 1; self.write_byte(mem, a, r); self.a |= r; self.set_z_n(self.a); 7 }
+0x03 => { let a = self.indirect_x(mem); let m = self.read_byte(mem, a); self.set_flag(Self::C, m & 0x80 != 0); let r = m << 1; self.write_byte(mem, a, r); self.a |= r; self.set_z_n(self.a); 8 }
+0x13 => { let a = self.indirect_y(mem); let m = self.read_byte(mem, a); self.set_flag(Self::C, m & 0x80 != 0); let r = m << 1; self.write_byte(mem, a, r); self.a |= r; self.set_z_n(self.a); 8 }
+
+// RLA (ROL + AND)
+0x27 => { let a = self.zero_page(mem); let m = self.read_byte(mem, a); let c = self.get_flag(Self::C) as u8; self.set_flag(Self::C, m & 0x80 != 0); let r = (m << 1) | c; self.write_byte(mem, a, r); self.a &= r; self.set_z_n(self.a); 5 }
+0x37 => { let a = self.zero_page_x(mem); let m = self.read_byte(mem, a); let c = self.get_flag(Self::C) as u8; self.set_flag(Self::C, m & 0x80 != 0); let r = (m << 1) | c; self.write_byte(mem, a, r); self.a &= r; self.set_z_n(self.a); 6 }
+0x2F => { let a = self.absolute(mem); let m = self.read_byte(mem, a); let c = self.get_flag(Self::C) as u8; self.set_flag(Self::C, m & 0x80 != 0); let r = (m << 1) | c; self.write_byte(mem, a, r); self.a &= r; self.set_z_n(self.a); 6 }
+0x3F => { let a = self.absolute_x(mem); let m = self.read_byte(mem, a); let c = self.get_flag(Self::C) as u8; self.set_flag(Self::C, m & 0x80 != 0); let r = (m << 1) | c; self.write_byte(mem, a, r); self.a &= r; self.set_z_n(self.a); 7 }
+0x3B => { let a = self.absolute_y(mem); let m = self.read_byte(mem, a); let c = self.get_flag(Self::C) as u8; self.set_flag(Self::C, m & 0x80 != 0); let r = (m << 1) | c; self.write_byte(mem, a, r); self.a &= r; self.set_z_n(self.a); 7 }
+0x23 => { let a = self.indirect_x(mem); let m = self.read_byte(mem, a); let c = self.get_flag(Self::C) as u8; self.set_flag(Self::C, m & 0x80 != 0); let r = (m << 1) | c; self.write_byte(mem, a, r); self.a &= r; self.set_z_n(self.a); 8 }
+0x33 => { let a = self.indirect_y(mem); let m = self.read_byte(mem, a); let c = self.get_flag(Self::C) as u8; self.set_flag(Self::C, m & 0x80 != 0); let r = (m << 1) | c; self.write_byte(mem, a, r); self.a &= r; self.set_z_n(self.a); 8 }
+
+// SRE (LSR + EOR)
+0x47 => { let a = self.zero_page(mem); let m = self.read_byte(mem, a); self.set_flag(Self::C, m & 1 != 0); let r = m >> 1; self.write_byte(mem, a, r); self.a ^= r; self.set_z_n(self.a); 5 }
+0x57 => { let a = self.zero_page_x(mem); let m = self.read_byte(mem, a); self.set_flag(Self::C, m & 1 != 0); let r = m >> 1; self.write_byte(mem, a, r); self.a ^= r; self.set_z_n(self.a); 6 }
+0x4F => { let a = self.absolute(mem); let m = self.read_byte(mem, a); self.set_flag(Self::C, m & 1 != 0); let r = m >> 1; self.write_byte(mem, a, r); self.a ^= r; self.set_z_n(self.a); 6 }
+0x5F => { let a = self.absolute_x(mem); let m = self.read_byte(mem, a); self.set_flag(Self::C, m & 1 != 0); let r = m >> 1; self.write_byte(mem, a, r); self.a ^= r; self.set_z_n(self.a); 7 }
+0x5B => { let a = self.absolute_y(mem); let m = self.read_byte(mem, a); self.set_flag(Self::C, m & 1 != 0); let r = m >> 1; self.write_byte(mem, a, r); self.a ^= r; self.set_z_n(self.a); 7 }
+0x43 => { let a = self.indirect_x(mem); let m = self.read_byte(mem, a); self.set_flag(Self::C, m & 1 != 0); let r = m >> 1; self.write_byte(mem, a, r); self.a ^= r; self.set_z_n(self.a); 8 }
+0x53 => { let a = self.indirect_y(mem); let m = self.read_byte(mem, a); self.set_flag(Self::C, m & 1 != 0); let r = m >> 1; self.write_byte(mem, a, r); self.a ^= r; self.set_z_n(self.a); 8 }
+
+// RRA (ROR + ADC)
+0x67 => { let a = self.zero_page(mem); let m = self.read_byte(mem, a); let c = self.get_flag(Self::C) as u8; self.set_flag(Self::C, m & 1 != 0); let r = (m >> 1) | (c << 7); self.write_byte(mem, a, r); self.adc(r); 5 }
+0x77 => { let a = self.zero_page_x(mem); let m = self.read_byte(mem, a); let c = self.get_flag(Self::C) as u8; self.set_flag(Self::C, m & 1 != 0); let r = (m >> 1) | (c << 7); self.write_byte(mem, a, r); self.adc(r); 6 }
+0x6F => { let a = self.absolute(mem); let m = self.read_byte(mem, a); let c = self.get_flag(Self::C) as u8; self.set_flag(Self::C, m & 1 != 0); let r = (m >> 1) | (c << 7); self.write_byte(mem, a, r); self.adc(r); 6 }
+0x7F => { let a = self.absolute_x(mem); let m = self.read_byte(mem, a); let c = self.get_flag(Self::C) as u8; self.set_flag(Self::C, m & 1 != 0); let r = (m >> 1) | (c << 7); self.write_byte(mem, a, r); self.adc(r); 7 }
+0x7B => { let a = self.absolute_y(mem); let m = self.read_byte(mem, a); let c = self.get_flag(Self::C) as u8; self.set_flag(Self::C, m & 1 != 0); let r = (m >> 1) | (c << 7); self.write_byte(mem, a, r); self.adc(r); 7 }
+0x63 => { let a = self.indirect_x(mem); let m = self.read_byte(mem, a); let c = self.get_flag(Self::C) as u8; self.set_flag(Self::C, m & 1 != 0); let r = (m >> 1) | (c << 7); self.write_byte(mem, a, r); self.adc(r); 8 }
+0x73 => { let a = self.indirect_y(mem); let m = self.read_byte(mem, a); let c = self.get_flag(Self::C) as u8; self.set_flag(Self::C, m & 1 != 0); let r = (m >> 1) | (c << 7); self.write_byte(mem, a, r); self.adc(r); 8 }
+
+// SBC Immediate (Illegal)
+0xEB => { let v = self.immediate(mem); self.sbc(v); 2 }
             _ => 2,
         }
     }

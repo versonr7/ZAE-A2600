@@ -40,14 +40,25 @@ impl Memory {
     }
 
     pub fn load_rom(&mut self, data: &[u8]) {
-        let len = data.len().min(ROM_SIZE);
-        self.rom[..len].copy_from_slice(&data[..len]);
-
-        // ✅ إذا كان الـ ROM أصغر من 4K (مثل 2K)، نعكسه لملء الفراغ
-        // هذا ضروري لمحاكاة Mirroring في Atari 2600
-        if len == 2048 {
-            self.rom[2048..4096].copy_from_slice(&data[..2048]);
-        }
+    let len = data.len();
+    if len == 4096 {
+        // روم 4K (حجم كامل)
+        self.rom.copy_from_slice(data);
+    } else if len == 2048 {
+        // روم 2K (يُعكس مرتين لملء 4K)
+        self.rom[..2048].copy_from_slice(data);
+        self.rom[2048..4096].copy_from_slice(data);
+    } else if len == 1024 {
+        // روم 1K (يُعكس 4 مرات لملء 4K)
+        self.rom[..1024].copy_from_slice(data);
+        self.rom[1024..2048].copy_from_slice(data);
+        self.rom[2048..3072].copy_from_slice(data);
+        self.rom[3072..4096].copy_from_slice(data);
+    } else {
+        // روم بحجم غير معروف (نأخذ أول 4K فقط)
+        let copy_len = len.min(4096);
+        self.rom[..copy_len].copy_from_slice(&data[..copy_len]);
+    }
     }
 
     fn riot_read(&self, addr: u16) -> u8 {
@@ -192,13 +203,7 @@ impl Memory {
     pub fn read(&mut self, addr: u16) -> u8 {
         let a = addr & 0x1FFF;
         match a {
-            0x0000..=0x007F => {
-                let v = self.tia.read_register(a & 0x3F);
-                if a >= 0x30 && a <= 0x37 {
-                    self.tia.clear_collision(a & 0x3F);
-                }
-                v
-            }
+            0x0000..=0x007F => self.tia.read_register(a & 0x3F),
             0x0080..=0x00FF => self.ram[(a & 0x7F) as usize],
             0x0180..=0x01FF => self.ram[(a & 0x7F) as usize],
             0x0280..=0x02FF => self.riot_read(a),

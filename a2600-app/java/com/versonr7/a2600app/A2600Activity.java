@@ -132,13 +132,14 @@ public class A2600Activity extends Activity implements SurfaceHolder.Callback {
     }
 
     private Button createTransparentButton(String text) {
-        Button btn = new Button(this);
-        btn.setText(text);
-        btn.setTextSize(24);
-        btn.getBackground().setAlpha(90);
-        btn.setTextColor(Color.WHITE);
-        btn.setPadding(0, 0, 0, 0);
-        return btn;
+    Button btn = new Button(this);
+    btn.setText(text);
+    btn.setTextSize(24);
+    // ✅ لون أسود شفاف (Alpha 100 من 255)
+    btn.setBackgroundColor(Color.argb(100, 0, 0, 0)); 
+    btn.setTextColor(Color.WHITE);
+    btn.setPadding(0, 0, 0, 0);
+    return btn;
     }
 
     private GridLayout.LayoutParams createGridParams(int row, int col) {

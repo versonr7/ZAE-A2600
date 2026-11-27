@@ -266,20 +266,6 @@ impl Tia {
         }
     }
 
-    pub fn clear_collision(&mut self, addr: u16) {
-        match addr {
-            0x30 => self.cxm0p = 0,
-            0x31 => self.cxm1p = 0,
-            0x32 => self.cxp0fb = 0,
-            0x33 => self.cxp1fb = 0,
-            0x34 => self.cxm0fb = 0,
-            0x35 => self.cxm1fb = 0,
-            0x36 => self.cxblpf = 0,
-            0x37 => self.cxppmm = 0,
-            _ => {}
-        }
-    }
-
     pub fn write_register(&mut self, addr: u16, value: u8) {
         match addr {
             0x00 => {
@@ -336,6 +322,11 @@ impl Tia {
                 self.hmove_ripple = 0;
                 self.hmove_latch = false;
             }
+          0x2C => {
+    // ✅ CXCLR: مسح جميع سجلات التصادم
+    self.cxm0p = 0; self.cxm1p = 0; self.cxp0fb = 0; self.cxp1fb = 0;
+    self.cxm0fb = 0; self.cxm1fb = 0; self.cxblpf = 0; self.cxppmm = 0;
+          }
             _ => {}
         }
     }
